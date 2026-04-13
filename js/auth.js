@@ -49,8 +49,8 @@ window.goBackToSplash = goBackToSplash;
 // ── Password strength ─────────────────────────────────────────────
 function checkStrength(pwd) {
   const wrap = document.getElementById('pwd-strength');
-  if (!pwd) { wrap.style.display = 'none'; return; }
-  wrap.style.display = 'flex';
+  if (!pwd) { if (wrap) wrap.style.display = 'none'; return; }
+  if (wrap) wrap.style.display = 'flex';
 
   let score = 0;
   if (pwd.length >= 8) score++;
@@ -68,17 +68,17 @@ function checkStrength(pwd) {
   ];
 
   bars.forEach((b, i) => {
-    b.style.background = i < score ? colors[score - 1] : 'var(--surface3)';
+    if (b) b.style.background = i < score ? colors[score - 1] : 'var(--surface3)';
   });
-  document.getElementById('plabel').textContent = labels[score - 1] || '';
-  document.getElementById('plabel').style.color = colors[score - 1] || 'var(--muted)';
+  const lbl = document.getElementById('plabel');
+  if (lbl) { lbl.textContent = labels[score - 1] || ''; lbl.style.color = colors[score - 1] || 'var(--muted)'; }
 }
 window.checkStrength = checkStrength;
 
 function validateStrongPassword(pwd) {
   if (pwd.length < 8) return 'A senha deve ter pelo menos 8 caracteres.';
   if (!/[0-9]/.test(pwd)) return 'A senha deve conter pelo menos um número.';
-  if (!/[^A-Za-z0-9]/.test(pwd)) return 'A senha deve conter pelo menos um caractere especial (!@#$%...).';
+  if (!/[^A-Za-z0-9]/.test(pwd)) return 'A senha deve conter pelo menos um símbolo (!@#$%...).';
   return null;
 }
 
@@ -107,7 +107,7 @@ function validateCPF(cpf) {
   return r === parseInt(c[10]);
 }
 
-// ── Register (email) ──────────────────────────────────────────────
+// ── Register (email + verification) ──────────────────────────────
 async function doRegister() {
   clearErr('reg-error');
   const nome = document.getElementById('reg-nome').value.trim();
@@ -119,21 +119,21 @@ async function doRegister() {
   if (!nome) return showErr('reg-error', 'Informe seu nome.');
   if (!cpf) return showErr('reg-error', 'Informe seu CPF.');
   if (!validateCPF(cpf)) return showErr('reg-error', 'CPF inválido. Verifique e tente novamente.');
-  if (!email.includes('@')) return showErr('reg-error', 'E-mail inválido.');
+  if (!email.includes('@') || !email.includes('.')) return showErr('reg-error', 'E-mail inválido.');
   const pwdErr = validateStrongPassword(senha);
   if (pwdErr) return showErr('reg-error', pwdErr);
 
   const btn = document.querySelector('#auth-register .btn-primary');
-  btn.disabled = true; btn.textContent = 'Verificando CPF...';
+  if (btn) { btn.disabled = true; btn.textContent = 'Verificando CPF...'; }
 
   const cpfFree = await checkCPFUnique(cpf);
   if (!cpfFree) {
     showErr('reg-error', 'Este CPF já possui uma conta cadastrada.');
-    btn.disabled = false; btn.textContent = 'Criar conta';
+    if (btn) { btn.disabled = false; btn.textContent = 'Criar conta'; }
     return;
   }
 
-  btn.textContent = 'Criando conta...';
+  if (btn) btn.textContent = 'Criando conta...';
 
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, senha);
@@ -142,10 +142,15 @@ async function doRegister() {
     await sendEmailVerification(cred.user);
     await saveUserProfile(cred.user, { displayName, provider: 'email', cpf: cpf.replace(/\D/g, '') });
     await saveCPF(cpf, cred.user.uid);
-    toast('Conta criada! Verifique seu e-mail para confirmar.', 'success');
+
+    // Show email verification screen
+    const subEl = document.getElementById('verify-email-sub');
+    if (subEl) subEl.textContent = `Enviamos um link de confirmação para ${email}. Clique no link para ativar sua conta.`;
+    showScreen('screen-verify-email');
+    toast('Conta criada! Verifique seu e-mail para continuar.', 'success');
   } catch (e) {
     showErr('reg-error', firebaseErrPT(e.code));
-    btn.disabled = false; btn.textContent = 'Criar conta';
+    if (btn) { btn.disabled = false; btn.textContent = 'Criar conta'; }
   }
 }
 window.doRegister = doRegister;
@@ -160,20 +165,40 @@ async function doLogin() {
   if (!senha) return showErr('login-error', 'Informe sua senha.');
 
   const btn = document.querySelector('#auth-login .btn-primary');
-  btn.disabled = true; btn.textContent = 'Entrando...';
+  if (btn) { btn.disabled = true; btn.textContent = 'Entrando...'; }
 
   try {
-    await signInWithEmailAndPassword(auth, email, senha);
-    // onAuthStateChanged in app.js handles navigation
+    const cred = await signInWithEmailAndPassword(auth, email, senha);
+    // Check email verification
+    if (!cred.user.emailVerified) {
+      const subEl = document.getElementById('verify-email-sub');
+      if (subEl) subEl.textContent = `Confirme o e-mail enviado para ${email} antes de entrar.`;
+      showScreen('screen-verify-email');
+      if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
+    }
+    // onAuthStateChanged in app.js handles navigation for verified users
   } catch (e) {
     showErr('login-error', firebaseErrPT(e.code));
-    btn.disabled = false; btn.textContent = 'Entrar';
+    if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
   }
 }
 window.doLogin = doLogin;
 
 // ── Google auth ───────────────────────────────────────────────────
 async function authGoogle() {
+  // Show loading state on all Google buttons
+  const btns = document.querySelectorAll('.social-btn');
+  const googleBtns = [];
+  btns.forEach(b => {
+    if (b.textContent.includes('Google')) {
+      googleBtns.push({ el: b, orig: b.innerHTML });
+      b.disabled = true;
+      b.innerHTML = '<span class="sicon">⏳</span> Conectando com Google...';
+    }
+  });
+
+  const restore = () => googleBtns.forEach(g => { g.el.disabled = false; g.el.innerHTML = g.orig; });
+
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   try {
@@ -181,9 +206,15 @@ async function authGoogle() {
     await saveUserProfile(cred.user, { provider: 'google' });
     // onAuthStateChanged handles navigation
   } catch (e) {
-    if (e.code !== 'auth/popup-closed-by-user') {
-      toast(firebaseErrPT(e.code), 'error');
+    restore();
+    if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+    let msg = firebaseErrPT(e.code);
+    if (e.code === 'auth/unauthorized-domain') {
+      msg = 'Domínio não autorizado no Firebase. Adicione este domínio em Authentication → Settings → Authorized domains.';
+    } else if (e.code === 'auth/popup-blocked') {
+      msg = 'Pop-up bloqueado pelo navegador. Permita pop-ups para este site e tente novamente.';
     }
+    toast(msg, 'error');
   }
 }
 window.authGoogle = authGoogle;
@@ -193,43 +224,58 @@ let confirmationResult = null;
 
 async function sendSMS() {
   clearErr('phone-error');
-  const cpf = document.getElementById('phone-cpf')?.value.trim() || '';
+  const cpf  = document.getElementById('phone-cpf')?.value.trim() || '';
   const nome = document.getElementById('phone-nome')?.value.trim() || '';
-  const ddi = document.getElementById('phone-ddi').value;
-  const num = document.getElementById('phone-number').value.replace(/\D/g, '');
+  const ddi  = document.getElementById('phone-ddi').value;
+  const raw  = document.getElementById('phone-number').value;
+  const num  = raw.replace(/\D/g, '');
 
   if (!cpf) return showErr('phone-error', 'Informe seu CPF.');
-  if (!validateCPF(cpf)) return showErr('phone-error', 'CPF inválido.');
+  if (!validateCPF(cpf)) return showErr('phone-error', 'CPF inválido. Verifique e tente novamente.');
   if (!nome) return showErr('phone-error', 'Informe seu nome.');
-  if (num.length < 8) return showErr('phone-error', 'Número de celular inválido.');
+  if (num.length < 8) return showErr('phone-error', 'Número de celular inválido. Ex: (11) 99999-9999.');
 
   window._pendingCPF = cpf;
   window._pendingName = nome + ' ' + (document.getElementById('phone-sobrenome')?.value.trim() || '');
 
   const cpfFree = await checkCPFUnique(cpf);
-  if (!cpfFree) return showErr('phone-error', 'Este CPF já possui uma conta cadastrada. Faça login.');
+  if (!cpfFree) return showErr('phone-error', 'Este CPF já possui uma conta. Faça login.');
 
   const fullPhone = ddi + num;
   const btn = document.querySelector('#auth-phone .btn-primary');
-  btn.disabled = true; btn.textContent = 'Enviando SMS...';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Enviando SMS...'; }
 
   try {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible',
-        callback: () => {}
-      });
-    }
-    confirmationResult = await signInWithPhoneNumber(auth, fullPhone, window.recaptchaVerifier);
-    document.getElementById('otp-sub').textContent = 'Enviamos um SMS real para ' + fullPhone + '.';
-    showView('auth-otp');
-    setTimeout(() => document.querySelector('.otp-input').focus(), 100);
-    toast('SMS enviado!', 'success');
-  } catch (e) {
-    showErr('phone-error', firebaseErrPT(e.code));
-    btn.disabled = false; btn.textContent = 'Enviar código SMS';
+    // Clear previous verifier
     if (window.recaptchaVerifier) {
-      window.recaptchaVerifier.clear();
+      try { window.recaptchaVerifier.clear(); } catch(e) {}
+      window.recaptchaVerifier = null;
+    }
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      size: 'invisible',
+      callback: () => {}
+    });
+    confirmationResult = await signInWithPhoneNumber(auth, fullPhone, window.recaptchaVerifier);
+    const subEl = document.getElementById('otp-sub');
+    if (subEl) subEl.textContent = `Código enviado para ${fullPhone}. Digite abaixo.`;
+    showView('auth-otp');
+    setTimeout(() => { const first = document.querySelector('.otp-input'); if (first) first.focus(); }, 100);
+    toast('SMS enviado! Verifique seu celular.', 'success');
+  } catch (e) {
+    let msg = firebaseErrPT(e.code);
+    if (e.code === 'auth/invalid-phone-number') {
+      msg = 'Número de telefone inválido. Use o formato com DDD, ex: (11) 99999-9999.';
+    } else if (e.code === 'auth/too-many-requests') {
+      msg = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
+    } else if (e.code === 'auth/captcha-check-failed') {
+      msg = 'Verificação de segurança falhou. Recarregue a página e tente novamente.';
+    } else if (e.code === 'auth/missing-phone-number') {
+      msg = 'Informe um número de telefone válido.';
+    }
+    showErr('phone-error', msg);
+    if (btn) { btn.disabled = false; btn.textContent = 'Enviar código SMS'; }
+    if (window.recaptchaVerifier) {
+      try { window.recaptchaVerifier.clear(); } catch(ex) {}
       window.recaptchaVerifier = null;
     }
   }
@@ -239,11 +285,11 @@ window.sendSMS = sendSMS;
 async function verifyOTP() {
   const code = Array.from(document.querySelectorAll('.otp-input')).map(i => i.value).join('');
   clearErr('otp-error');
-  if (code.length < 6) return;
-  if (!confirmationResult) return showErr('otp-error', 'Sessão expirada. Solicite novo código.');
+  if (code.length < 6) return showErr('otp-error', 'Digite todos os 6 dígitos do código.');
+  if (!confirmationResult) return showErr('otp-error', 'Sessão expirada. Solicite um novo código.');
 
   const btn = document.querySelector('#auth-otp .btn-primary');
-  btn.disabled = true; btn.textContent = 'Verificando...';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Verificando...'; }
 
   try {
     const cred = await confirmationResult.confirm(code);
@@ -254,25 +300,33 @@ async function verifyOTP() {
     window._pendingCPF = null; window._pendingName = null;
     // onAuthStateChanged handles navigation
   } catch (e) {
-    showErr('otp-error', firebaseErrPT(e.code));
+    let msg = firebaseErrPT(e.code);
+    if (e.code === 'auth/invalid-verification-code') msg = 'Código incorreto. Tente novamente.';
+    if (e.code === 'auth/code-expired') msg = 'Código expirado. Solicite um novo.';
+    showErr('otp-error', msg);
     document.querySelectorAll('.otp-input').forEach(i => { i.value = ''; i.classList.add('shake'); });
     setTimeout(() => document.querySelectorAll('.otp-input').forEach(i => i.classList.remove('shake')), 500);
-    document.querySelector('.otp-input').focus();
-    btn.disabled = false; btn.textContent = 'Verificar e entrar';
+    const firstOtp = document.querySelector('.otp-input');
+    if (firstOtp) firstOtp.focus();
+    if (btn) { btn.disabled = false; btn.textContent = 'Verificar e entrar'; }
   }
 }
 window.verifyOTP = verifyOTP;
 
 function otpNext(input, idx) {
   input.value = input.value.replace(/[^0-9]/g, '');
-  if (input.value && idx < 5) document.querySelectorAll('.otp-input')[idx + 1].focus();
+  if (input.value && idx < 5) {
+    const next = document.querySelectorAll('.otp-input')[idx + 1];
+    if (next) next.focus();
+  }
   if (idx === 5 && input.value) verifyOTP();
 }
 window.otpNext = otpNext;
 
 function otpBack(e, input, idx) {
   if (e.key === 'Backspace' && !input.value && idx > 0) {
-    document.querySelectorAll('.otp-input')[idx - 1].focus();
+    const prev = document.querySelectorAll('.otp-input')[idx - 1];
+    if (prev) prev.focus();
   }
 }
 window.otpBack = otpBack;
@@ -284,37 +338,110 @@ async function doForgot() {
   if (!email.includes('@')) return showErr('forgot-error', 'Informe um e-mail válido.');
 
   const btn = document.querySelector('#auth-forgot .btn-primary');
-  btn.disabled = true; btn.textContent = 'Enviando...';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Enviando...'; }
 
   try {
     await sendPasswordResetEmail(auth, email);
-    document.getElementById('forgot-msg').textContent = '✓ Link enviado para ' + email + '. Verifique sua caixa de entrada.';
-    document.getElementById('forgot-msg').style.display = 'block';
-    document.getElementById('forgot-email').value = '';
+    const msgEl = document.getElementById('forgot-msg');
+    if (msgEl) { msgEl.textContent = '✓ Link enviado para ' + email + '. Verifique sua caixa de entrada (e spam).'; msgEl.style.display = 'block'; }
+    const emailEl = document.getElementById('forgot-email');
+    if (emailEl) emailEl.value = '';
   } catch (e) {
     showErr('forgot-error', firebaseErrPT(e.code));
   } finally {
-    btn.disabled = false; btn.textContent = 'Enviar link';
+    if (btn) { btn.disabled = false; btn.textContent = 'Enviar link'; }
   }
 }
 window.doForgot = doForgot;
 
+// ── Email verification ────────────────────────────────────────────
+async function checkEmailVerification() {
+  const user = auth.currentUser;
+  if (!user) { showScreen('screen-splash'); return; }
+
+  const btn = document.getElementById('check-verify-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Verificando...'; }
+
+  try {
+    await user.reload();
+    if (user.emailVerified) {
+      const { getPlanState } = await import('./api.js');
+      const uid = user.uid;
+      const state = getPlanState(uid);
+      const setupDone = localStorage.getItem('finno_setup_' + uid);
+      toast('E-mail confirmado! Bem-vindo ao Finno ✓', 'success');
+
+      // Developer always gets premium
+      if (['igorgranero86@gmail.com'].includes(user.email)) {
+        localStorage.setItem('finno_plan_' + uid, 'premium');
+        localStorage.setItem('finno_setup_' + uid, '1');
+      }
+
+      if (setupDone) {
+        showScreen('screen-loading');
+        window.runLoadingSequence?.(() => {
+          showScreen('screen-dashboard');
+          window.buildDashboard?.();
+          window.applyPlanUI?.(getPlanState(uid));
+        });
+      } else if (state !== 'none' && state !== 'free') {
+        showScreen('screen-connect');
+        window.showConnectState?.(state, uid);
+      } else {
+        showScreen('screen-plan');
+      }
+    } else {
+      toast('E-mail ainda não confirmado. Verifique sua caixa de entrada e spam.', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Já confirmei, continuar →'; }
+    }
+  } catch (e) {
+    toast('Erro ao verificar. Tente novamente.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Já confirmei, continuar →'; }
+  }
+}
+window.checkEmailVerification = checkEmailVerification;
+
+async function resendVerificationEmail() {
+  const user = auth.currentUser;
+  if (!user) return;
+  const btn = document.getElementById('resend-verify-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Enviando...'; }
+  try {
+    await sendEmailVerification(user);
+    toast('E-mail de confirmação reenviado! Verifique sua caixa de entrada.', 'success');
+  } catch (e) {
+    if (e.code === 'auth/too-many-requests') {
+      toast('Aguarde alguns minutos para reenviar.', 'error');
+    } else {
+      toast(firebaseErrPT(e.code), 'error');
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Reenviar e-mail de confirmação'; }
+  }
+}
+window.resendVerificationEmail = resendVerificationEmail;
+
 // ── Logout ────────────────────────────────────────────────────────
+function confirmLogout() {
+  document.getElementById('modal-logout')?.classList.add('open');
+}
+window.confirmLogout = confirmLogout;
+
 async function doLogout() {
   try {
     const uid = auth.currentUser?.uid;
     closeModal('modal-logout');
     closeModal('modal-account');
     window.connectedItems = [];
-    if (uid) localStorage.removeItem('finno_banks_' + uid);
     await signOut(auth);
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    ['step1', 'step2', 'step3', 'step4', 'step5'].forEach(id => {
+    // Reset loading steps
+    ['step1', 'step2', 'step3', 'step4', 'step5'].forEach((id, i) => {
       const el = document.getElementById(id);
       if (el) {
         el.classList.remove('active', 'done');
         const icon = el.querySelector('.step-icon');
-        if (icon) icon.textContent = ['🔐', '🏦', '📊', '🤖', '✨'][['step1','step2','step3','step4','step5'].indexOf(id)];
+        const icons = ['🔐', '🏦', '📊', '🤖', '✨'];
+        if (icon) icon.textContent = icons[i] || '⚡';
       }
     });
     const fill = document.getElementById('progress-fill');
@@ -330,10 +457,73 @@ window.doLogout = doLogout;
 // ── Toggle password visibility ────────────────────────────────────
 function togglePwd(id, icon) {
   const inp = document.getElementById(id);
+  if (!inp) return;
   inp.type = inp.type === 'password' ? 'text' : 'password';
-  icon.textContent = inp.type === 'password' ? '👁' : '🙈';
+  if (icon) icon.textContent = inp.type === 'password' ? '👁' : '🙈';
 }
 window.togglePwd = togglePwd;
+
+// ── Account menu ──────────────────────────────────────────────────
+function openAccountMenu() {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  // Populate name and email
+  const nameEl = document.getElementById('menu-name');
+  const emailEl = document.getElementById('menu-email');
+  const editNameEl = document.getElementById('edit-name');
+  const initialsEl = document.getElementById('menu-initials');
+  const photoEl = document.getElementById('menu-photo');
+
+  if (nameEl) nameEl.textContent = user.displayName || 'Usuário';
+  if (emailEl) emailEl.textContent = user.email || user.phoneNumber || '';
+  if (editNameEl) editNameEl.value = user.displayName || '';
+
+  // Avatar
+  const savedPhoto = localStorage.getItem('finno_photo_' + user.uid);
+  if (savedPhoto) {
+    if (photoEl) { photoEl.src = savedPhoto; photoEl.style.display = 'block'; }
+    if (initialsEl) initialsEl.style.display = 'none';
+  } else {
+    if (photoEl) photoEl.style.display = 'none';
+    const name = user.displayName || user.email || '?';
+    const parts = name.split(' ');
+    const initials = parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
+    if (initialsEl) { initialsEl.textContent = initials; initialsEl.style.display = 'block'; }
+  }
+
+  // Plan badge
+  const { getPlanState } = window;
+  const state = getPlanState ? getPlanState(user.uid) : 'free';
+  const badge = document.getElementById('menu-plan-badge');
+  if (badge) {
+    const labels = { premium:'⭐ Premium', trial:'🔬 Trial ativo', free:'🆓 Gratuito', expired:'⚠️ Trial expirado', none:'🆓 Gratuito' };
+    badge.textContent = labels[state] || '🆓 Gratuito';
+    badge.style.color = state === 'premium' ? 'var(--accent)' : 'var(--muted)';
+    badge.style.background = state === 'premium' ? 'rgba(124,109,250,0.15)' : 'rgba(255,255,255,0.06)';
+  }
+
+  // Banks count
+  const banksLabel = document.getElementById('banks-count-label');
+  if (banksLabel) {
+    const banks = window.connectedItems?.length || 0;
+    banksLabel.textContent = banks > 0 ? banks + ' banco(s) conectado(s)' : 'Nenhum banco conectado';
+  }
+
+  // Plan sections
+  const fs = document.getElementById('plan-section-free');
+  const ps = document.getElementById('plan-section-premium');
+  if (fs) fs.style.display = state === 'premium' ? 'none' : 'block';
+  if (ps) ps.style.display = state === 'premium' ? 'block' : 'none';
+
+  // Hide password section for non-email providers
+  const isEmailUser = user.providerData.some(p => p.providerId === 'password');
+  const pwdSection = document.getElementById('pwd-section');
+  if (pwdSection) pwdSection.style.display = isEmailUser ? 'block' : 'none';
+
+  document.getElementById('modal-account')?.classList.add('open');
+}
+window.openAccountMenu = openAccountMenu;
 
 // ── Profile editing ───────────────────────────────────────────────
 async function saveProfile() {
@@ -342,22 +532,52 @@ async function saveProfile() {
   const newName = document.getElementById('edit-name').value.trim();
   if (!newName) { toast('Informe um nome válido.', 'error'); return; }
 
+  const btn = document.querySelector('#modal-account button[onclick="saveProfile()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando...'; }
+
   try {
     await updateProfile(user, { displayName: newName });
-    document.getElementById('menu-name').textContent = newName;
+
+    // Update UI immediately
+    const nameEl = document.getElementById('menu-name');
+    if (nameEl) nameEl.textContent = newName;
     setAvatar(user);
-    await setDoc(doc(db, 'users', user.uid), { displayName: newName }, { merge: true });
-    toast('Nome atualizado com sucesso! ✓', 'success');
+
+    // Update home greeting
+    const homeNameEl = document.getElementById('home-user-name');
+    if (homeNameEl) {
+      const firstName = newName.split(' ')[0];
+      const hour = new Date().getHours();
+      const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+      homeNameEl.textContent = greeting + ', ' + firstName + ' 👋';
+    }
+
+    // Save to Firestore
+    try {
+      await setDoc(doc(db, 'users', user.uid), { displayName: newName }, { merge: true });
+    } catch(e) { /* Firestore optional */ }
+
+    toast('Nome atualizado! ✓', 'success');
   } catch (e) {
     toast('Erro ao salvar nome: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Salvar nome'; }
   }
 }
 window.saveProfile = saveProfile;
 
+// ── Password change (requires re-authentication) ──────────────────
 async function changePassword() {
   const user = auth.currentUser;
   if (!user) return;
 
+  const isEmailUser = user.providerData.some(p => p.providerId === 'password');
+  if (!isEmailUser) {
+    showPwdMsg('Sua conta usa Google ou celular. Alteração de senha não aplicável.', 'error');
+    return;
+  }
+
+  const currentPwd = document.getElementById('edit-current-pwd')?.value;
   const newPwd = document.getElementById('edit-new-pwd').value;
   const confirmPwd = document.getElementById('edit-confirm-pwd').value;
 
@@ -366,30 +586,41 @@ async function changePassword() {
   if (pwdErr) { showPwdMsg(pwdErr, 'error'); return; }
   if (newPwd !== confirmPwd) { showPwdMsg('As senhas não coincidem.', 'error'); return; }
 
-  const isEmailUser = user.providerData.some(p => p.providerId === 'password');
-  if (!isEmailUser) {
-    showPwdMsg('Sua conta usa login pelo Google ou celular. Alteração de senha não aplicável.', 'error');
-    return;
-  }
+  const btn = document.querySelector('#modal-account button[onclick="changePassword()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Alterando...'; }
 
   try {
-    const { updatePassword } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+    const { updatePassword, reauthenticateWithCredential, EmailAuthProvider } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+
+    // Try to re-authenticate first if current password provided
+    if (currentPwd) {
+      const cred = EmailAuthProvider.credential(user.email, currentPwd);
+      await reauthenticateWithCredential(user, cred);
+    }
+
     await updatePassword(user, newPwd);
     showPwdMsg('Senha alterada com sucesso! ✓', 'success');
     document.getElementById('edit-new-pwd').value = '';
     document.getElementById('edit-confirm-pwd').value = '';
+    if (document.getElementById('edit-current-pwd')) document.getElementById('edit-current-pwd').value = '';
   } catch (e) {
-    if (e.code === 'auth/requires-recent-login') {
-      showPwdMsg('Por segurança, faça logout e login novamente antes de alterar a senha.', 'error');
+    if (e.code === 'auth/requires-recent-login' || e.code === 'auth/wrong-password') {
+      showPwdMsg('Senha atual incorreta ou sessão expirada. Informe sua senha atual.', 'error');
+      // Show current password field
+      const curPwdWrap = document.getElementById('current-pwd-wrap');
+      if (curPwdWrap) curPwdWrap.style.display = 'block';
     } else {
-      showPwdMsg('Erro: ' + (firebaseErrPT(e.code) || e.message), 'error');
+      showPwdMsg(firebaseErrPT(e.code) || e.message, 'error');
     }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Alterar senha'; }
   }
 }
 window.changePassword = changePassword;
 
 function showPwdMsg(msg, type) {
   const el = document.getElementById('pwd-change-msg');
+  if (!el) return;
   el.textContent = msg;
   el.style.display = 'block';
   el.style.background = type === 'success' ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.08)';
@@ -399,108 +630,73 @@ function showPwdMsg(msg, type) {
 
 // ── Photo upload ──────────────────────────────────────────────────
 function triggerPhotoUpload() {
-  document.getElementById('photo-upload').click();
+  document.getElementById('photo-upload')?.click();
 }
 window.triggerPhotoUpload = triggerPhotoUpload;
 
 function handlePhotoUpload(input) {
-  const file = input.files[0];
+  const file = input.files?.[0];
   if (!file) return;
-  if (file.size > 2 * 1024 * 1024) { toast('Imagem muito grande. Use até 2MB.', 'error'); return; }
+  if (file.size > 5 * 1024 * 1024) { toast('Foto muito grande. Máximo 5MB.', 'error'); return; }
+
+  const user = auth.currentUser;
+  if (!user) return;
 
   const reader = new FileReader();
   reader.onload = (e) => {
     const dataUrl = e.target.result;
-    const user = auth.currentUser;
-    if (user) localStorage.setItem('finno_photo_' + user.uid, dataUrl);
 
-    const photoEl = document.getElementById('menu-photo');
-    const initialsEl = document.getElementById('menu-initials');
+    // Save to localStorage
+    try {
+      localStorage.setItem('finno_photo_' + user.uid, dataUrl);
+    } catch(ex) {
+      toast('Não foi possível salvar a foto (armazenamento cheio).', 'error');
+      return;
+    }
+
+    // Update menu avatar
+    const menuPhoto = document.getElementById('menu-photo');
+    const menuInitials = document.getElementById('menu-initials');
+    if (menuPhoto) { menuPhoto.src = dataUrl; menuPhoto.style.display = 'block'; }
+    if (menuInitials) menuInitials.style.display = 'none';
+
+    // Update nav avatar
     const navAvatar = document.getElementById('nav-avatar');
-
-    photoEl.src = dataUrl;
-    photoEl.style.display = 'block';
-    if (initialsEl) initialsEl.style.display = 'none';
     if (navAvatar) {
       navAvatar.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
     }
+
+    // Clear input for re-selection
+    input.value = '';
+
     toast('Foto atualizada! ✓', 'success');
   };
+  reader.onerror = () => toast('Erro ao carregar a foto.', 'error');
   reader.readAsDataURL(file);
 }
 window.handlePhotoUpload = handlePhotoUpload;
 
-// ── Account menu ──────────────────────────────────────────────────
-function openAccountMenu() {
+// Remove photo
+function removePhoto() {
   const user = auth.currentUser;
   if (!user) return;
+  localStorage.removeItem('finno_photo_' + user.uid);
 
-  const name = user.displayName || user.email?.split('@')[0] || 'Usuário';
-  const email = user.email || user.phoneNumber || '';
-  const parts = name.trim().split(' ');
-  const initials = parts.length >= 2
-    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    : name.slice(0, 2).toUpperCase();
+  // Update menu
+  const menuPhoto = document.getElementById('menu-photo');
+  const menuInitials = document.getElementById('menu-initials');
+  if (menuPhoto) { menuPhoto.src = ''; menuPhoto.style.display = 'none'; }
+  if (menuInitials) menuInitials.style.display = 'block';
 
-  document.getElementById('menu-initials').textContent = initials;
-  document.getElementById('menu-name').textContent = name;
-  document.getElementById('menu-email').textContent = email;
-  document.getElementById('edit-name').value = name;
-
-  const photoEl = document.getElementById('menu-photo');
-  const initialsEl = document.getElementById('menu-initials');
-  const savedPhoto = localStorage.getItem('finno_photo_' + user.uid);
-  if (user.photoURL || savedPhoto) {
-    photoEl.src = savedPhoto || user.photoURL;
-    photoEl.style.display = 'block';
-    initialsEl.style.display = 'none';
-  } else {
-    photoEl.style.display = 'none';
-    initialsEl.style.display = 'flex';
-  }
-
-  const uid = user.uid;
-  const plan = localStorage.getItem('finno_plan_' + uid) || 'free';
-  const badge = document.getElementById('menu-plan-badge');
-  if (badge) {
-    badge.textContent = plan === 'premium' ? '⭐ Premium' : '🆓 Gratuito';
-    badge.style.background = plan === 'premium' ? 'rgba(124,109,250,0.15)' : 'rgba(255,255,255,0.06)';
-    badge.style.color = plan === 'premium' ? 'var(--accent)' : 'var(--muted)';
-  }
-
-  document.getElementById('plan-section-free').style.display = plan === 'free' ? 'block' : 'none';
-  document.getElementById('plan-section-premium').style.display = plan === 'premium' ? 'block' : 'none';
-
-  const banksLabel = document.getElementById('banks-count-label');
-  const ci = window.connectedItems || [];
-  if (banksLabel) banksLabel.textContent = ci.length > 0 ? `${ci.length} banco(s) conectado(s)` : 'Nenhum banco conectado';
-
-  const banksItem = document.getElementById('banks-menu-item');
-  if (banksItem) banksItem.style.display = plan === 'free' ? 'none' : 'flex';
-
-  document.getElementById('edit-new-pwd').value = '';
-  document.getElementById('edit-confirm-pwd').value = '';
-  document.getElementById('pwd-change-msg').style.display = 'none';
-
-  document.getElementById('modal-account').classList.add('open');
+  // Update nav avatar
+  setAvatar(user);
+  toast('Foto removida.', 'success');
 }
-window.openAccountMenu = openAccountMenu;
+window.removePhoto = removePhoto;
 
-// ── Confirm logout / cancel premium ──────────────────────────────
-function confirmLogout() {
-  closeModal('modal-account');
-  setTimeout(() => document.getElementById('modal-logout').classList.add('open'), 200);
-}
-window.confirmLogout = confirmLogout;
-
+// ── Bank navigation helper ────────────────────────────────────────
 function goToBanks() {
   closeModal('modal-account');
-  const uid = auth.currentUser?.uid;
-  const plan = localStorage.getItem('finno_plan_' + uid) || 'free';
-  if (plan === 'free') {
-    window.showUpgrade?.('Conecte seus bancos automaticamente com o Finno Premium por apenas R$ 19,90/mês.');
-  } else {
-    showScreen('screen-connect');
-  }
+  window.goToBankConnect?.();
 }
 window.goToBanks = goToBanks;

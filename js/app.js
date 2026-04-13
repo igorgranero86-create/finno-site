@@ -86,6 +86,16 @@ onAuthStateChanged(auth, user => {
     setAvatar(user);
     const uid = user.uid;
 
+    // Email/password users must verify their email before proceeding
+    const provider = user.providerData[0]?.providerId;
+    if (provider === 'password' && !user.emailVerified) {
+      const subEl = document.getElementById('verify-email-sub');
+      if (subEl) subEl.textContent = `Confirme o e-mail enviado para ${user.email}.`;
+      showScreen('screen-verify-email');
+      if (loader) { loader.classList.add('hide'); setTimeout(() => loader.style.display = 'none', 500); }
+      return;
+    }
+
     // Developer always gets premium
     if (['igorgranero86@gmail.com'].includes(user.email)) {
       localStorage.setItem('finno_plan_' + uid, 'premium');

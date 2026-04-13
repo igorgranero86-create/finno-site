@@ -962,4 +962,51 @@ body::before {
 .count-up       { animation:countUp 0.6s ease forwards; }
 .fade-in        { animation:fadeIn 0.4s ease both; }
 .shake          { animation:shake 0.4s ease; }
+
+/* ── SAFE OVERFLOW FOR MONETARY VALUES ───────────────────────── */
+.amount, .balance-amount, .home-balance-value,
+.stat-card .amount, .home-metric-value {
+  word-break: break-word;
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+/* ── VERIFY EMAIL SCREEN ─────────────────────────────────────── */
+#screen-verify-email {
+  background: linear-gradient(160deg, #060d1f 0%, #0b1a35 55%, #0f2044 100%);
+}
+#check-verify-btn {
+  background: linear-gradient(135deg, #003d99, #0066ff);
+  box-shadow: 0 8px 32px rgba(0,90,220,0.35);
+}
+#check-verify-btn:disabled, #resend-verify-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+#verify-email-msg.success {
+  background: rgba(0,200,150,0.12);
+  color: #00c896;
+  border: 1px solid rgba(0,200,150,0.2);
+}
+#verify-email-msg.error {
+  background: rgba(248,113,113,0.1);
+  color: var(--danger);
+  border: 1px solid rgba(248,113,113,0.2);
+}
+
+/* ── RESPONSIVE: SMALL SCREENS (≤390px) ─────────────────────── */
+@media (max-width: 390px) {
+  .home-balance-value { font-size: 2.1rem !important; }
+  .home-metric-value  { font-size: 1rem !important; }
+  .stat-card          { padding: 14px 12px; }
+  .stat-card .label   { font-size: 0.68rem; }
+  .stat-card .amount  { font-size: 0.95rem; }
+  .tab                { font-size: 0.68rem; padding: 8px 5px; }
+  .nav-label          { font-size: 0.6rem; }
+  .balance-hero       { padding: 20px 16px; }
+  .topnav             { padding: 12px 14px; }
+  .content            { padding: 14px; }
+  .card               { padding: 14px; }
+  .modal-content      { padding: 20px 16px; }
+}
 .no-display     { display:none !important; }
