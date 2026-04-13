@@ -28,6 +28,10 @@ import {
   getDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {
+  getFunctions,
+  httpsCallable
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js";
 
 // ── Firebase config ───────────────────────────────────────────────
 export const firebaseConfig = {
@@ -45,6 +49,7 @@ export const app = initializeApp(firebaseConfig);
 export const analytics = getAnalytics(app);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const functions = getFunctions(app, 'southamerica-east1');
 auth.languageCode = 'pt-BR';
 
 // Re-export auth functions needed by auth.js
@@ -68,10 +73,6 @@ export {
   getDoc,
   serverTimestamp
 };
-
-// ── Pluggy constants ──────────────────────────────────────────────
-export const PLUGGY_CLIENT_ID = 'eb8a3739-160b-4c97-af2a-5ad97da7da13';
-export const PLUGGY_CLIENT_SECRET = '58e403d6-b260-4caa-9572-13f0c6f0e196';
 
 // ── Firestore helpers ─────────────────────────────────────────────
 
@@ -148,10 +149,30 @@ export function getBankLimit(state) {
 }
 
 // ── Pluggy data fetch ─────────────────────────────────────────────
-// Note: In production, the API key must be obtained server-side.
-// For now returns null to trigger demo/simulation mode.
+// Obtém o accessToken via Cloud Function — credenciais nunca chegam ao frontend.
+// Retorna null em qualquer falha, ativando o modo demo automaticamente.
 export async function fetchPluggyData() {
-  return null;
+  try {
+    const user = auth.currentUser;
+    if (!user) return null; // sem sessão ativa → modo demo
+    const getToken = httpsCallable(functions, 'getPluggyAccessToken');
+    const result = await getToken();
+    return result.data?.apiKey || null;
+  } catch (e) {
+    console.warn('Pluggy token indisponível, usando modo demo:', e.message);
+    return null;
+  }
+}
+
+// ── Pluggy Connect Token ──────────────────────────────────────────
+// Gera um Connect Token via Cloud Function para abrir o widget Pluggy Connect.
+// Lança erro se o usuário não estiver autenticado ou se a função falhar.
+export async function getPluggyConnectToken() {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Usuário não autenticado.');
+  const createToken = httpsCallable(functions, 'createPluggyConnectToken');
+  const result = await createToken();
+  return result.data?.connectToken || null;
 }
 
 // ── Firebase error → Portuguese messages ─────────────────────────

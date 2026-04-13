@@ -8,7 +8,7 @@ import {
   auth, db,
   doc, setDoc,
   getPlanState, getTrialDaysLeft, getBankLimit,
-  PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET
+  getPluggyConnectToken
 } from './api.js';
 
 // ── DOM helpers (resolved via window, set by app.js) ─────────────
@@ -955,13 +955,8 @@ export async function openPluggyConnect() {
 
   let connectToken = null;
   try {
-    const ar = await fetch('https://api.pluggy.ai/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientId:PLUGGY_CLIENT_ID,clientSecret:PLUGGY_CLIENT_SECRET})});
-    const ad = await ar.json();
-    if (ad.apiKey) {
-      const tr = await fetch('https://api.pluggy.ai/connect_token',{method:'POST',headers:{'Content-Type':'application/json','X-API-KEY':ad.apiKey},body:JSON.stringify({clientUserId:uid||'user_finno'})});
-      connectToken = (await tr.json()).accessToken;
-    }
-  } catch(e) { console.warn('Pluggy CORS:', e.message); }
+    connectToken = await getPluggyConnectToken();
+  } catch(e) { console.warn('Pluggy connect token error:', e.message); }
 
   if (btn) { btn.disabled=false; btn.innerHTML='🏦 Escolher meu banco'; }
   if (!connectToken) { showPluggySetupModal(); return; }
