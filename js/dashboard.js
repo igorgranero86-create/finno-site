@@ -1,0 +1,1182 @@
+// ================================================================
+// dashboard.js — Dashboard rendering, charts, transactions, goals,
+//                categories, insights, simulation, home panel,
+//                plan management, Pluggy integration
+// ================================================================
+
+import {
+  auth, db,
+  doc, setDoc,
+  getPlanState, getTrialDaysLeft, getBankLimit,
+  PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET
+} from './api.js';
+
+// ── DOM helpers (resolved via window, set by app.js) ─────────────
+function showScreen(id) { window.showScreen?.(id); }
+function toast(msg, type = 'success') { window.toast?.(msg, type); }
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('open');
+}
+window.closeModal = closeModal;
+
+// ── Global state ──────────────────────────────────────────────────
+export let currentPlan = 'free';
+window.connectedItems = window.connectedItems || [];
+
+// ── Demo data ─────────────────────────────────────────────────────
+const transactions = [
+  { date:'2026-04-11', desc:'iFood — Almoço',       cat:'🛒 Alimentação', amount:-47.90,   bank:'Nubank' },
+  { date:'2026-04-11', desc:'Uber',                  cat:'🚗 Transporte',  amount:-18.50,   bank:'Nubank' },
+  { date:'2026-04-10', desc:'Salário — Empresa XYZ', cat:'💰 Salário',     amount:8500.00,  bank:'Inter'  },
+  { date:'2026-04-10', desc:'Conta de Luz',           cat:'🏠 Moradia',     amount:-210.00,  bank:'Nubank' },
+  { date:'2026-04-09', desc:'Farmácia Drogasil',      cat:'💊 Saúde',       amount:-89.30,   bank:'Nubank' },
+  { date:'2026-04-09', desc:'Netflix',                cat:'📱 Assinaturas', amount:-44.90,   bank:'Nubank' },
+  { date:'2026-04-08', desc:'Supermercado Extra',     cat:'🛒 Alimentação', amount:-312.40,  bank:'Nubank' },
+  { date:'2026-04-08', desc:'Posto BR — Gasolina',   cat:'🚗 Transporte',  amount:-180.00,  bank:'Inter'  },
+  { date:'2026-04-07', desc:'Amazon — Livros',        cat:'👗 Compras',     amount:-127.00,  bank:'Nubank' },
+  { date:'2026-04-07', desc:'Restaurante Outback',    cat:'🛒 Alimentação', amount:-145.80,  bank:'Nubank' },
+  { date:'2026-04-06', desc:'Academia Smart Fit',     cat:'💊 Saúde',       amount:-99.90,   bank:'Inter'  },
+  { date:'2026-04-05', desc:'Spotify',                cat:'📱 Assinaturas', amount:-21.90,   bank:'Nubank' },
+  { date:'2026-04-05', desc:'Aluguel',                cat:'🏠 Moradia',     amount:-2200.00, bank:'Inter'  },
+  { date:'2026-04-04', desc:'Bar do Zé',              cat:'🎮 Lazer',       amount:-95.00,   bank:'Nubank' },
+  { date:'2026-04-03', desc:'Farmácia — Vitaminas',   cat:'💊 Saúde',       amount:-65.20,   bank:'Nubank' },
+];
+
+const goals = [
+  { name:'Viagem Europa',       icon:'✈️',  target:15000, current:4500,  color:'#7c6dfa' },
+  { name:'Reserva Emergência',  icon:'🛡️', target:25000, current:12847, color:'#6dfac8' },
+  { name:'Novo Notebook',       icon:'💻',  target:6000,  current:1800,  color:'#fa6d9a' },
+  { name:'Investimentos',       icon:'📈',  target:50000, current:8200,  color:'#fbbf24' },
+];
+
+const chartData = [
+  { month:'Nov', income:7200, expense:5100 },
+  { month:'Dez', income:8900, expense:6800 },
+  { month:'Jan', income:7800, expense:4900 },
+  { month:'Fev', income:7500, expense:5200 },
+  { month:'Mar', income:8200, expense:5600 },
+  { month:'Abr', income:8500, expense:4214 },
+];
+
+const HOME_CATEGORIES = [
+  { name:'Moradia',     icon:'🏠', amount:2410,   color:'#0066ff', bg:'rgba(0,102,255,0.12)'   },
+  { name:'Alimentação', icon:'🛒', amount:506.10, color:'#00c896', bg:'rgba(0,200,150,0.12)'   },
+  { name:'Transporte',  icon:'🚗', amount:198.50, color:'#ff6b6b', bg:'rgba(255,107,107,0.12)' },
+  { name:'Saúde',       icon:'💊', amount:254.40, color:'#fbbf24', bg:'rgba(251,191,36,0.12)'  },
+  { name:'Assinaturas', icon:'📱', amount:66.80,  color:'#a78bfa', bg:'rgba(167,139,250,0.12)' },
+  { name:'Lazer',       icon:'🎮', amount:95.00,  color:'#34d399', bg:'rgba(52,211,153,0.12)'  },
+];
+
+const HOME_ACCOUNTS = [
+  { name:'Nubank',      type:'Conta Corrente', last4:'4821', balance:3241.18,  color:'#820AD1', icon:'💜' },
+  { name:'Banco Inter', type:'Conta Corrente', last4:'0912', balance:10846.12, color:'#FF7A00', icon:'🔶' },
+];
+
+// ── Loading sequence ──────────────────────────────────────────────
+export function runLoadingSequence(callback) {
+  const steps = ['step1','step2','step3','step4','step5'];
+  const progresses = [15, 35, 60, 80, 100];
+  const fill = document.getElementById('progress-fill');
+  let i = 0;
+
+  function next() {
+    if (i > 0) {
+      const prev = document.getElementById(steps[i - 1]);
+      if (prev) {
+        prev.classList.remove('active');
+        prev.classList.add('done');
+        const icon = prev.querySelector('.step-icon');
+        if (icon) icon.textContent = '✓';
+      }
+    }
+    if (i < steps.length) {
+      const cur = document.getElementById(steps[i]);
+      if (cur) cur.classList.add('active');
+      if (fill) fill.style.width = progresses[i] + '%';
+      i++;
+      setTimeout(next, 900 + Math.random() * 400);
+    } else {
+      if (fill) fill.style.width = '100%';
+      setTimeout(() => { if (callback) callback(); }, 600);
+    }
+  }
+  next();
+}
+window.runLoadingSequence = runLoadingSequence;
+
+// ── Build dashboard ───────────────────────────────────────────────
+export function buildDashboard() {
+  buildHomePanel();
+  buildChart();
+  buildTransactions();
+  buildCategories();
+  buildGoals();
+  buildInsights();
+}
+window.buildDashboard = buildDashboard;
+
+export function buildChart() {
+  const el = document.getElementById('bar-chart');
+  if (!el) return;
+  const maxVal = Math.max(...chartData.map(d => Math.max(d.income, d.expense)), 1);
+  el.innerHTML = chartData.map(d => {
+    const ih = Math.round((d.income / maxVal) * 100);
+    const eh = Math.round((d.expense / maxVal) * 100);
+    return `<div class="bar-col">
+      <div class="bar-wrap" style="display:flex;align-items:flex-end;gap:3px;width:100%;height:100%">
+        <div class="bar income" style="height:${ih}%;flex:1;min-height:4px"></div>
+        <div class="bar expense" style="height:${eh}%;flex:1;min-height:4px"></div>
+      </div>
+      <div class="bar-month">${d.month}</div>
+    </div>`;
+  }).join('');
+}
+window.buildChart = buildChart;
+
+export function buildTransactions() {
+  renderTransactions(transactions);
+}
+window.buildTransactions = buildTransactions;
+
+export function buildCategories() {
+  filterCategoriesByPeriod();
+}
+window.buildCategories = buildCategories;
+
+export function buildGoals() {
+  const grid = document.getElementById('goals-grid');
+  const limitLabel = document.getElementById('goals-limit-label');
+  const newBtn = document.getElementById('btn-new-goal');
+  if (!grid) return;
+
+  const limit = currentPlan === 'premium' ? 10 : 3;
+  const visible = goals.slice(0, limit);
+
+  if (limitLabel) limitLabel.textContent = `${goals.length}/${limit} metas`;
+  if (newBtn) {
+    newBtn.style.opacity = goals.length >= limit ? '0.4' : '1';
+    newBtn.style.pointerEvents = goals.length >= limit ? 'none' : 'auto';
+    newBtn.title = goals.length >= limit ? `Limite de ${limit} metas atingido` : '';
+  }
+
+  grid.innerHTML = visible.map((g, i) => {
+    const pct = Math.min(Math.round((g.current / g.target) * 100), 100);
+    const r = 30, circ = 2 * Math.PI * r;
+    const dash = (pct / 100) * circ;
+    const deadlineStr = g.deadline ? `<div style="font-size:0.7rem;color:var(--muted);margin-top:4px">📅 ${new Date(g.deadline).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}</div>` : '';
+    const daysLeft = g.deadline ? Math.ceil((new Date(g.deadline) - new Date()) / 86400000) : null;
+    const urgency = daysLeft !== null && daysLeft < 30 ? 'var(--warning)' : g.color;
+    return `<div class="goal-card" onclick="openGoalDetail(${i})" style="cursor:pointer;transition:all 0.2s" onmouseover="this.style.borderColor='${g.color}';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform='none'">
+      <div class="icon">${g.icon}</div>
+      <div class="gname">${g.name}</div>
+      <div class="gtarget">Meta: R$ ${g.target.toLocaleString('pt-BR')}</div>
+      ${deadlineStr}
+      <div class="goal-ring">
+        <svg width="70" height="70" viewBox="0 0 70 70">
+          <circle cx="35" cy="35" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="5"/>
+          <circle cx="35" cy="35" r="${r}" fill="none" stroke="${urgency}" stroke-width="5"
+            stroke-dasharray="${dash} ${circ - dash}" stroke-linecap="round" transform="rotate(-90 35 35)"/>
+        </svg>
+        <div class="pct-text">${pct}%</div>
+      </div>
+      <div style="font-size:0.75rem;color:var(--muted);text-align:center;margin-top:4px">
+        R$ ${g.current.toLocaleString('pt-BR')} <span style="color:var(--muted)">de</span> R$ ${g.target.toLocaleString('pt-BR')}
+      </div>
+      ${daysLeft !== null ? `<div style="font-size:0.7rem;text-align:center;margin-top:4px;color:${daysLeft < 30 ? 'var(--warning)' : 'var(--muted)'}">
+        ${daysLeft > 0 ? daysLeft + ' dias restantes' : daysLeft === 0 ? 'Vence hoje!' : 'Prazo encerrado'}
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
+  if (goals.length >= limit && currentPlan === 'free') {
+    grid.innerHTML += `<div style="grid-column:1/-1;background:rgba(124,109,250,0.06);border:1px dashed rgba(124,109,250,0.3);border-radius:16px;padding:20px;text-align:center;cursor:pointer" onclick="showUpgrade('Tenha até 10 metas com o Finno Premium por apenas R$ 19,90/mês.')">
+      <div style="font-size:1.2rem;margin-bottom:8px">🔒</div>
+      <div style="font-size:0.82rem;font-weight:600;margin-bottom:4px">Limite de 3 metas no plano gratuito</div>
+      <div style="font-size:0.75rem;color:var(--muted)">Assine o Premium para ter até 10 metas</div>
+    </div>`;
+  }
+}
+window.buildGoals = buildGoals;
+
+export function buildInsights() {
+  const list = document.getElementById('insights-list');
+  if (!list) return;
+
+  const generated = generateInsights();
+  const score = generated.score;
+
+  const scoreEl = document.getElementById('health-score');
+  const labelEl = document.getElementById('health-label');
+  const subEl   = document.getElementById('health-sub');
+  const barEl   = document.getElementById('health-bar');
+  if (scoreEl) { scoreEl.textContent = score; scoreEl.style.color = score >= 75 ? 'var(--success)' : score >= 50 ? 'var(--warning)' : 'var(--danger)'; }
+  if (labelEl) { const l = score>=80?'🟢 Excelente!':score>=65?'🟡 Boa':score>=50?'🟠 Regular':'🔴 Atenção'; labelEl.textContent = l; }
+  if (subEl)   { subEl.textContent = generated.scoreSub; }
+  if (barEl)   { setTimeout(() => barEl.style.width = score + '%', 300); }
+
+  list.innerHTML = generated.insights.map((ins, i) => `
+    <div class="insight-card" style="border-left:3px solid ${ins.color};margin-bottom:10px;animation:fadeIn 0.35s ${i*0.06}s ease both;opacity:0">
+      <div class="insight-icon">${ins.icon}</div>
+      <div class="insight-content">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px">
+          <h4 style="font-size:0.86rem;line-height:1.3">${ins.title}</h4>
+          <span style="font-size:0.62rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);padding:2px 7px;border-radius:99px;color:var(--muted);white-space:nowrap;flex-shrink:0">${ins.tag}</span>
+        </div>
+        <p style="font-size:0.79rem;line-height:1.5;color:var(--muted)">${ins.text}</p>
+        ${ins.bar ? `<div style="margin-top:10px;height:4px;background:var(--surface3);border-radius:99px;overflow:hidden"><div style="height:100%;width:${ins.bar}%;background:${ins.color};border-radius:99px;transition:width 1s ease"></div></div>` : ''}
+      </div>
+    </div>`).join('');
+}
+window.buildInsights = buildInsights;
+
+function generateInsights() {
+  const exp   = transactions.filter(t => t.amount < 0);
+  const inc   = transactions.filter(t => t.amount > 0);
+  const totalIncome   = inc.reduce((s,t) => s + t.amount, 0);
+  const totalExpenses = exp.reduce((s,t) => s + Math.abs(t.amount), 0);
+  const savings       = totalIncome - totalExpenses;
+  const savingsRate   = totalIncome > 0 ? Math.round((savings / totalIncome) * 100) : 0;
+
+  const catMap = {};
+  exp.forEach(t => {
+    const k = (t.cat||'Outros').replace(/^[\u{1F000}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}✓→←↑↓]+\s*/u,'').trim();
+    catMap[k] = (catMap[k]||0) + Math.abs(t.amount);
+  });
+  const catEntries = Object.entries(catMap).sort((a,b)=>b[1]-a[1]);
+  const topCat     = catEntries[0];
+  const topCatPct  = totalExpenses > 0 && topCat ? Math.round((topCat[1]/totalExpenses)*100) : 0;
+
+  const subs      = exp.filter(t => t.cat && (t.cat.includes('Assinatura') || t.desc.match(/netflix|spotify|amazon|prime|disney|apple|youtube|globo/i)));
+  const subsTotal  = subs.reduce((s,t)=>s+Math.abs(t.amount),0);
+  const subNames   = [...new Set(subs.map(t=>t.desc.split(/[—\-–]/)[0].trim()))].slice(0,3);
+
+  const delivery      = exp.filter(t => t.desc.match(/ifood|rappi|uber\s*eat|delivery/i));
+  const deliveryTotal = delivery.reduce((s,t)=>s+Math.abs(t.amount),0);
+
+  const weekendExp   = exp.filter(t => { const d=new Date(t.date+'T00:00:00'); return d.getDay()===0||d.getDay()===6; });
+  const weekendTotal = weekendExp.reduce((s,t)=>s+Math.abs(t.amount),0);
+  const weekdayTotal = totalExpenses - weekendTotal;
+
+  const biggestTx  = exp.slice().sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount))[0];
+  const moradiaTotal = catMap['Moradia'] || 0;
+  const moradiaPct   = totalIncome > 0 ? Math.round((moradiaTotal/totalIncome)*100) : 0;
+  const lastInc = inc.sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
+  const daysSinceInc = lastInc ? Math.round((Date.now()-new Date(lastInc.date+'T00:00:00'))/86400000) : null;
+  const nearGoal    = goals.length > 0 ? goals.reduce((a,b)=>(a.current/a.target)>(b.current/b.target)?a:b) : null;
+  const nearGoalPct = nearGoal ? Math.min(Math.round((nearGoal.current/nearGoal.target)*100),100) : 0;
+
+  let score = 50;
+  if (savingsRate >= 20) score += 15;
+  if (savingsRate >= 30) score += 10;
+  if (moradiaPct <= 30)  score += 8;
+  if (deliveryTotal < 150) score += 5;
+  if (subsTotal < 100)   score += 5;
+  if (goals.length > 0)  score += 4;
+  if (nearGoalPct >= 50) score += 3;
+  score = Math.min(score, 100);
+
+  const pool = [];
+
+  if (topCat) pool.push({ icon:'📊', color:'#0066ff', tag:'Categoria', title:`${topCat[0]}: ${topCatPct}% dos gastos`, text:`Você gastou R$ ${topCat[1].toLocaleString('pt-BR',{minimumFractionDigits:2})} em ${topCat[0].toLowerCase()} — a maior fatia do orçamento este mês.`, bar: topCatPct, score: topCatPct > 50 ? -5 : 0 });
+  if (deliveryTotal > 0) pool.push({ icon:'🛵', color: deliveryTotal>300?'#ff6b6b':'#fbbf24', tag:'Delivery', title:`R$ ${deliveryTotal.toLocaleString('pt-BR',{minimumFractionDigits:2})} em delivery este mês`, text: deliveryTotal > 300 ? `Isso equivale a ${Math.round(deliveryTotal/45)} refeições por app. Cozinhar em casa 3x por semana economiza até R$ 200/mês.` : `Uso moderado. Abaixo de R$ 300 está dentro do razoável.`, score: deliveryTotal > 300 ? -3 : 2 });
+  if (subsTotal > 0) pool.push({ icon:'📱', color:'#a78bfa', tag:'Assinaturas', title:`R$ ${subsTotal.toFixed(2).replace('.',',')} por mês em assinaturas`, text: subNames.length > 0 ? `${subNames.join(', ')} — isso representa R$ ${(subsTotal*12).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,'.')}/ano.` : `Cancele o que não usa há mais de 30 dias.`, score: subsTotal > 150 ? -3 : 0 });
+  pool.push({ icon: savingsRate >= 20 ? '💰' : '⚠️', color: savingsRate >= 20 ? '#00c896' : '#ff6b6b', tag:'Poupança', title:`Taxa de poupança: ${savingsRate}%`, text: savingsRate >= 30 ? `Você está poupando ${savingsRate}% da renda — acima do recomendado.` : savingsRate >= 20 ? `Boa disciplina. Você está dentro da meta dos 20%.` : savingsRate >= 10 ? `Abaixo do ideal. A meta é poupar ao menos 20% da renda.` : `Atenção: menos de 10% de poupança é um sinal de alerta.`, bar: Math.min(savingsRate * 2, 100), score: savingsRate >= 20 ? 5 : -5 });
+  if (moradiaTotal > 0) pool.push({ icon: moradiaPct > 30 ? '🏠' : '✅', color: moradiaPct > 30 ? '#ff6b6b' : '#00c896', tag:'Moradia', title:`Moradia: ${moradiaPct}% da renda ${moradiaPct > 30 ? '(acima do ideal)' : '(dentro do limite)'}`, text: moradiaPct > 30 ? `Especialistas recomendam no máximo 30% da renda com moradia.` : `Sua moradia consome ${moradiaPct}% da renda, abaixo dos 30% recomendados.`, score: moradiaPct > 30 ? -5 : 3 });
+  if (biggestTx) pool.push({ icon:'💸', color:'#fbbf24', tag:'Maior gasto', title:`Maior despesa: ${biggestTx.desc}`, text:`R$ ${Math.abs(biggestTx.amount).toLocaleString('pt-BR',{minimumFractionDigits:2})} em uma única transação — ${Math.round(Math.abs(biggestTx.amount)/totalExpenses*100)}% de todos os gastos.`, score: 0 });
+  if (nearGoal) pool.push({ icon:'🎯', color:'#0066ff', tag:'Meta', title:`"${nearGoal.name}" está em ${nearGoalPct}%`, text: nearGoalPct >= 80 ? `Faltam apenas R$ ${(nearGoal.target-nearGoal.current).toLocaleString('pt-BR',{minimumFractionDigits:2})} para concluir.` : `Com a sua taxa de poupança atual, faltam ${savings>0?Math.ceil((nearGoal.target-nearGoal.current)/savings):'?'} mês(es).`, bar: nearGoalPct, score: nearGoalPct >= 50 ? 3 : 0 });
+  if (savings > 500) pool.push({ icon:'📈', color:'#00c896', tag:'Investimento', title:`Você tem R$ ${savings.toLocaleString('pt-BR',{minimumFractionDigits:2})} disponíveis para investir`, text: savings > 2000 ? `Com esse valor, diversifique: Tesouro Selic para liquidez, CDB para rendimento.` : `Comece com Tesouro Selic ou CDB 100% CDI — mais rentável que a poupança.`, score: 5 });
+  pool.push({ icon:'📅', color:'#0066ff', tag:'Projeção', title:`Projeção anual: R$ ${(totalExpenses*12).toLocaleString('pt-BR',{maximumFractionDigits:0})} em gastos`, text:`Se mantiver o ritmo atual, você gastará R$ ${(totalExpenses*12).toLocaleString('pt-BR',{maximumFractionDigits:0})} e poupará R$ ${(savings*12).toLocaleString('pt-BR',{maximumFractionDigits:0})} nos próximos 12 meses.`, score: 0 });
+  pool.push({ icon:'💳', color:'#f97316', tag:'Cartão', title:`Nunca pague apenas o mínimo do cartão`, text:`O rotativo cobra em média 400% ao ano no Brasil. Se não puder pagar tudo, parcele o restante — nunca o mínimo.`, score: 1 });
+
+  const scored = pool.filter(p => p.title && p.text).map((p,i)=>({...p,idx:i})).sort((a,b)=>Math.abs(b.score||0)-Math.abs(a.score||0));
+  return {
+    score,
+    scoreSub: `Taxa de poupança: ${savingsRate}% · Gastos: R$ ${totalExpenses.toLocaleString('pt-BR',{minimumFractionDigits:2})}`,
+    insights: scored.slice(0, 8)
+  };
+}
+window.generateInsights = generateInsights;
+
+// ── Navigation / tabs ─────────────────────────────────────────────
+export function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const tabs = document.querySelectorAll('.tab');
+  const tabNames = ['visao-geral','transacoes','categorias','metas','insights'];
+  const idx = tabNames.indexOf(name);
+  if (tabs[idx]) tabs[idx].classList.add('active');
+  const panel = document.getElementById('panel-' + name);
+  if (panel) panel.classList.add('active');
+}
+window.switchTab = switchTab;
+window.showTab = switchTab;
+
+export function switchBottomTab(el, name) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const tabs = document.querySelectorAll('.tab');
+  const tabNames = ['visao-geral','transacoes','categorias','metas','insights'];
+  const idx = tabNames.indexOf(name);
+  tabs.forEach(t => t.classList.remove('active'));
+  if (tabs[idx]) tabs[idx].classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById('panel-' + name);
+  if (panel) panel.classList.add('active');
+}
+window.switchBottomTab = switchBottomTab;
+
+// ── Modals ────────────────────────────────────────────────────────
+export function openAddTx() {
+  const modal = document.getElementById('modal-tx');
+  if (modal) modal.classList.add('open');
+}
+window.openAddTx = openAddTx;
+
+export function openGoalModal() {
+  const modal = document.getElementById('modal-goal');
+  if (modal) modal.classList.add('open');
+}
+window.openGoalModal = openGoalModal;
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.modal-overlay').forEach(m => {
+    m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+  });
+});
+
+export function addTransaction() {
+  const desc = document.getElementById('tx-desc').value;
+  const val = parseFloat(document.getElementById('tx-val').value);
+  const cat = document.getElementById('tx-cat').value;
+  const type = document.getElementById('tx-type').value;
+  if (!desc || !val) return;
+  const amount = type === 'Gasto' ? -val : val;
+  const today = new Date().toISOString().split('T')[0];
+  transactions.unshift({ date: today, desc, cat, amount, bank: 'Manual' });
+  buildTransactions();
+  closeModal('modal-tx');
+  document.getElementById('tx-desc').value = '';
+  document.getElementById('tx-val').value = '';
+}
+window.addTransaction = addTransaction;
+
+export function addGoal() {
+  const name = document.getElementById('goal-name').value;
+  const target = parseFloat(document.getElementById('goal-target').value);
+  const current = parseFloat(document.getElementById('goal-current').value) || 0;
+  const icon = document.getElementById('goal-icon').value || '🎯';
+  if (!name || !target) return;
+  const colors = ['#7c6dfa','#6dfac8','#fa6d9a','#fbbf24','#818cf8'];
+  goals.push({ name, icon, target, current, color: colors[goals.length % colors.length] });
+  buildGoals();
+  closeModal('modal-goal');
+  document.getElementById('goal-name').value = '';
+  document.getElementById('goal-target').value = '';
+  document.getElementById('goal-current').value = '';
+  document.getElementById('goal-icon').value = '';
+}
+window.addGoal = addGoal;
+
+export function syncData() {
+  const el = document.querySelector('.nav-sync');
+  if (!el) return;
+  el.style.opacity = '0.5';
+  el.innerHTML = '<div class="sync-dot"></div> Sincronizando...';
+  setTimeout(() => { el.style.opacity = '1'; el.innerHTML = '<div class="sync-dot"></div> Sincronizado agora'; }, 2000);
+}
+window.syncData = syncData;
+
+// ── Filters ───────────────────────────────────────────────────────
+export function applyFilters() {
+  const type = document.getElementById('filter-type')?.value || 'all';
+  const cat = document.getElementById('filter-cat')?.value || 'all';
+  const period = document.getElementById('filter-period')?.value || 'all';
+
+  let filtered = [...transactions];
+  if (type === 'income') filtered = filtered.filter(t => t.amount > 0);
+  if (type === 'expense') filtered = filtered.filter(t => t.amount < 0);
+  if (cat !== 'all') filtered = filtered.filter(t => t.cat === cat);
+
+  const now = new Date(); now.setHours(23,59,59,999);
+  const today = new Date(); today.setHours(0,0,0,0);
+  if (period === 'today') filtered = filtered.filter(t => new Date(t.date+'T00:00:00') >= today);
+  if (period === 'week') { const d = new Date(today); d.setDate(d.getDate()-7); filtered = filtered.filter(t => new Date(t.date+'T00:00:00') >= d); }
+  if (period === 'month') { filtered = filtered.filter(t => { const d=new Date(t.date+'T00:00:00'); return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear(); }); }
+  if (period === 'last30') { const d=new Date(today); d.setDate(d.getDate()-30); filtered=filtered.filter(t=>new Date(t.date+'T00:00:00')>=d); }
+  if (period === 'last90') { const d=new Date(today); d.setDate(d.getDate()-90); filtered=filtered.filter(t=>new Date(t.date+'T00:00:00')>=d); }
+
+  const total = filtered.reduce((s,t) => s + t.amount, 0);
+  const sumEl = document.getElementById('filter-summary');
+  if (sumEl) sumEl.textContent = filtered.length > 0 ? `${filtered.length} transação(ões) · Total: R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}` : 'Nenhuma transação encontrada para os filtros selecionados.';
+
+  renderTransactions(filtered);
+}
+window.applyFilters = applyFilters;
+
+export function clearFilters() {
+  ['filter-type','filter-cat','filter-period'].forEach(id => { const el=document.getElementById(id); if(el) el.value='all'; });
+  const sumEl = document.getElementById('filter-summary');
+  if (sumEl) sumEl.textContent = '';
+  buildTransactions();
+}
+window.clearFilters = clearFilters;
+
+export function renderTransactions(txList) {
+  const list = document.getElementById('tx-list');
+  if (!list) return;
+  if (!txList || txList.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:0.88rem">Nenhuma transação encontrada.</div>';
+    return;
+  }
+  const sorted = [...txList].sort((a,b) => new Date(b.date)-new Date(a.date));
+  const groups = {};
+  sorted.forEach(tx => { const date = tx.date?.split('T')[0]||'Sem data'; if(!groups[date]) groups[date]=[]; groups[date].push(tx); });
+  const fmtDate = d => { const dt=new Date(d+'T00:00:00'); const hoje=new Date(); hoje.setHours(0,0,0,0); const diff=Math.round((hoje-dt)/86400000); if(diff===0) return 'Hoje'; if(diff===1) return 'Ontem'; return dt.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'short'}); };
+  list.innerHTML = Object.entries(groups).map(([date,txs]) => `<div class="tx-date-group"><div class="tx-date-label">${fmtDate(date)}</div>${txs.map(tx => { const amt=tx.amount||0; const isPos=amt>0; return `<div class="tx-item"><div class="tx-emoji">${(tx.cat||'').split(' ')[0]||'💸'}</div><div class="tx-info"><div class="desc">${tx.desc||tx.description||'Transação'}</div><div class="cat">${tx.cat||tx.category||'Outros'} · ${tx.bank||tx.bankName||''}</div></div><div class="tx-amount ${isPos?'positive':'negative'}">${isPos?'+':''}R$ ${Math.abs(amt).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>`; }).join('')}</div>`).join('');
+}
+window.renderTransactions = renderTransactions;
+
+// ── Categories ────────────────────────────────────────────────────
+export function filterCategoriesByPeriod() {
+  const period = document.getElementById('cat-period-filter')?.value || 'month';
+  const labelMap = { month:'Este mês', week:'Esta semana', today:'Hoje', last30:'Últimos 30 dias', last90:'Últimos 90 dias', all:'Todo período' };
+  const label = document.getElementById('cat-period-label');
+  if (label) label.textContent = labelMap[period] || period;
+  const filtered = filterTxByPeriod(transactions, period).filter(t => t.amount < 0);
+  const total = filtered.reduce((s,t) => s + Math.abs(t.amount), 0);
+  const totalEl = document.getElementById('cat-total-amount');
+  if (totalEl) { const formatted = total.toLocaleString('pt-BR',{minimumFractionDigits:2}); const [int,dec] = formatted.split(','); totalEl.innerHTML = `<span>R$</span> ${int}<span style="font-size:1.2rem">,${dec}</span>`; }
+  buildCategoriesFromTx(filtered);
+}
+window.filterCategoriesByPeriod = filterCategoriesByPeriod;
+
+export function filterTxByPeriod(txList, period) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const now = new Date();
+  if (period === 'today') return txList.filter(t => new Date(t.date+'T00:00:00') >= today);
+  if (period === 'week') { const d=new Date(today); d.setDate(d.getDate()-7); return txList.filter(t=>new Date(t.date+'T00:00:00')>=d); }
+  if (period === 'month') return txList.filter(t => { const d=new Date(t.date+'T00:00:00'); return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear(); });
+  if (period === 'last30') { const d=new Date(today); d.setDate(d.getDate()-30); return txList.filter(t=>new Date(t.date+'T00:00:00')>=d); }
+  if (period === 'last90') { const d=new Date(today); d.setDate(d.getDate()-90); return txList.filter(t=>new Date(t.date+'T00:00:00')>=d); }
+  return txList;
+}
+window.filterTxByPeriod = filterTxByPeriod;
+
+export function buildCategoriesFromTx(filteredTx) {
+  const list = document.getElementById('cat-list');
+  if (!list) return;
+  const catMap = {};
+  filteredTx.forEach(tx => { const cat=tx.cat||tx.category||'🔧 Outros'; if(!catMap[cat]) catMap[cat]=0; catMap[cat]+=Math.abs(tx.amount); });
+  const total = Object.values(catMap).reduce((a,b)=>a+b,0);
+  if (total === 0) { list.innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem">Nenhum gasto no período selecionado.</div>'; return; }
+  const colors = ['#7c6dfa','#6dfac8','#fa6d9a','#fbbf24','#818cf8','#34d399','#f87171','#94a3b8','#60a5fa','#e879f9'];
+  const sorted = Object.entries(catMap).sort((a,b)=>b[1]-a[1]);
+  list.innerHTML = sorted.map(([cat, amt], idx) => {
+    const pct = total > 0 ? Math.round((amt/total)*100) : 0;
+    const color = colors[idx % colors.length];
+    return `<div class="cat-item" onclick="openCatDetail('${cat.replace(/'/g,"\\'")}','${document.getElementById('cat-period-filter')?.value||'month'}')" style="cursor:pointer;padding:8px;border-radius:12px;transition:background 0.15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='none'">
+      <div class="cat-row">
+        <div class="name" style="gap:8px">${cat} <span style="font-size:0.7rem;color:var(--muted)">${pct}%</span></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div class="amount">R$ ${amt.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+          <span style="color:var(--muted);font-size:0.8rem">›</span>
+        </div>
+      </div>
+      <div class="cat-bar" style="margin-top:6px"><div class="cat-fill" style="width:${pct}%;background:${color}"></div></div>
+    </div>`;
+  }).join('');
+}
+window.buildCategoriesFromTx = buildCategoriesFromTx;
+
+let currentCatDetail = null;
+
+export function openCatDetail(catName, period) {
+  currentCatDetail = catName;
+  const detail = document.getElementById('cat-detail');
+  if (!detail) return;
+  document.getElementById('cat-detail-icon').textContent = catName.split(' ')[0];
+  document.getElementById('cat-detail-name').textContent = catName;
+  if (document.getElementById('cat-detail-period')) document.getElementById('cat-detail-period').value = period || 'month';
+  detail.style.display = 'flex';
+  refreshCatDetail();
+}
+window.openCatDetail = openCatDetail;
+
+export function refreshCatDetail() {
+  const period = document.getElementById('cat-detail-period')?.value || 'month';
+  const catName = currentCatDetail;
+  const catTx = filterTxByPeriod(transactions, period).filter(t => (t.cat||t.category||'') === catName && t.amount < 0);
+  const total = catTx.reduce((s,t) => s + Math.abs(t.amount), 0);
+  document.getElementById('cat-detail-total').textContent = `R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})} · ${catTx.length} transação(ões)`;
+  const listEl = document.getElementById('cat-detail-list');
+  if (!listEl) return;
+  if (catTx.length === 0) { listEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:0.85rem">Nenhum gasto nesta categoria no período.</div>'; return; }
+  const sorted = [...catTx].sort((a,b) => new Date(b.date)-new Date(a.date));
+  listEl.innerHTML = sorted.map(tx => `<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)"><div style="width:38px;height:38px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0">${(tx.cat||'').split(' ')[0]||'💸'}</div><div style="flex:1"><div style="font-size:0.85rem;font-weight:500">${tx.desc||tx.description||'Transação'}</div><div style="font-size:0.72rem;color:var(--muted);margin-top:2px">${new Date(tx.date+'T00:00:00').toLocaleDateString('pt-BR')} · ${tx.bank||tx.bankName||''}</div></div><div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.92rem;color:var(--danger)">-R$ ${Math.abs(tx.amount).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>`).join('');
+}
+window.refreshCatDetail = refreshCatDetail;
+
+export function closeCatDetail() {
+  const detail = document.getElementById('cat-detail');
+  if (detail) detail.style.display = 'none';
+}
+window.closeCatDetail = closeCatDetail;
+
+// ── Goal detail ───────────────────────────────────────────────────
+let currentGoalIdx = null;
+
+export function openGoalDetail(idx) {
+  currentGoalIdx = idx;
+  const g = goals[idx];
+  if (!g) return;
+  document.getElementById('gd-icon').textContent = g.icon;
+  document.getElementById('gd-name').textContent = g.name;
+  document.getElementById('gd-current').value = g.current;
+  document.getElementById('gd-target').value = g.target;
+  document.getElementById('gd-icon-input').value = g.icon;
+  if (g.deadline) document.getElementById('gd-deadline').value = g.deadline;
+  updateGoalPreview();
+  document.getElementById('modal-goal-detail').classList.add('open');
+}
+window.openGoalDetail = openGoalDetail;
+
+export function updateGoalPreview() {
+  const current = parseFloat(document.getElementById('gd-current')?.value) || 0;
+  const target = parseFloat(document.getElementById('gd-target')?.value) || 0;
+  const deadline = document.getElementById('gd-deadline')?.value;
+  const pct = target > 0 ? Math.min(Math.round((current/target)*100),100) : 0;
+  const pctEl = document.getElementById('gd-pct');
+  const barEl = document.getElementById('gd-bar');
+  const progEl = document.getElementById('gd-progress-text');
+  const estEl = document.getElementById('gd-estimate');
+  if (pctEl) pctEl.textContent = pct + '%';
+  if (barEl) barEl.style.width = pct + '%';
+  if (progEl) progEl.textContent = `R$ ${current.toLocaleString('pt-BR',{minimumFractionDigits:2})} de R$ ${target.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+  if (estEl) {
+    const remaining = target - current;
+    if (remaining > 0 && deadline) {
+      const daysLeft = Math.ceil((new Date(deadline) - new Date()) / 86400000);
+      const monthsLeft = Math.max(Math.ceil(daysLeft/30),1);
+      const perMonth = remaining / monthsLeft;
+      estEl.style.display = 'block';
+      estEl.innerHTML = `📅 Faltam <b>${daysLeft > 0 ? daysLeft + ' dias' : 'prazo encerrado'}</b> · Precisa guardar <b>R$ ${perMonth.toLocaleString('pt-BR',{minimumFractionDigits:2})}/mês</b>`;
+    } else if (remaining <= 0) { estEl.style.display='block'; estEl.innerHTML='🎉 <b>Meta atingida!</b> Parabéns!'; }
+    else { estEl.style.display='none'; }
+  }
+}
+window.updateGoalPreview = updateGoalPreview;
+
+export function saveGoalDetail() {
+  if (currentGoalIdx === null) return;
+  const current = parseFloat(document.getElementById('gd-current').value) || 0;
+  const target = parseFloat(document.getElementById('gd-target').value) || 0;
+  const deadline = document.getElementById('gd-deadline').value;
+  const icon = document.getElementById('gd-icon-input').value || goals[currentGoalIdx].icon;
+  if (target <= 0) { toast('Informe um valor de meta válido.','error'); return; }
+  goals[currentGoalIdx].current = current;
+  goals[currentGoalIdx].target = target;
+  goals[currentGoalIdx].deadline = deadline || null;
+  goals[currentGoalIdx].icon = icon;
+  closeModal('modal-goal-detail');
+  buildGoals();
+  toast('Meta atualizada com sucesso! ✓','success');
+}
+window.saveGoalDetail = saveGoalDetail;
+
+export function deleteGoal() {
+  if (currentGoalIdx === null) return;
+  if (!confirm('Excluir esta meta?')) return;
+  goals.splice(currentGoalIdx, 1);
+  currentGoalIdx = null;
+  closeModal('modal-goal-detail');
+  buildGoals();
+  toast('Meta excluída.','success');
+}
+window.deleteGoal = deleteGoal;
+
+export function refreshInsights() {
+  buildInsights();
+  toast('Insights atualizados! ✓','success');
+}
+window.refreshInsights = refreshInsights;
+
+// ── Plan management ───────────────────────────────────────────────
+export function showConnectState(state, uid) {
+  ['paywall','trial','expired','premium'].forEach(s => { const el=document.getElementById('connect-state-'+s); if(el) el.style.display='none'; });
+  const target = (state === 'none' || state === 'free') ? 'paywall' : state;
+  const el = document.getElementById('connect-state-' + target);
+  if (!el) return;
+  el.style.display = 'block';
+  if (state === 'trial') {
+    const label = document.getElementById('trial-days-label');
+    if (label) label.textContent = getTrialDaysLeft(uid) + ' dia(s) restante(s) de trial';
+    restoreConnectedItems('trial');
+  } else if (state === 'premium') {
+    restoreConnectedItems('premium');
+  }
+}
+window.showConnectState = showConnectState;
+
+function restoreConnectedItems(state) {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  try {
+    const saved = localStorage.getItem('finno_banks_' + uid);
+    if (!saved) return;
+    const ids = JSON.parse(saved);
+    window.connectedItems = ids.map(id => ({ id, details: { connector: { name: 'Banco conectado' } } }));
+    if (state === 'trial' && window.connectedItems.length > 0) {
+      const listEl=document.getElementById('connected-accounts-list'); const goBtn=document.getElementById('go-dashboard-btn'); const connectBtn=document.getElementById('pluggy-connect-btn'); const itemsEl=document.getElementById('connected-items');
+      if (listEl) listEl.style.display='block'; if (goBtn) goBtn.style.display='block'; if (connectBtn) connectBtn.style.display='none';
+      if (itemsEl) itemsEl.innerHTML = window.connectedItems.map(i=>`<div style="display:flex;align-items:center;gap:12px;background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.2);border-radius:12px;padding:12px 16px;margin-bottom:8px"><span style="font-size:1.4rem">🏦</span><div style="flex:1"><div style="font-size:0.88rem;font-weight:600">${i.details?.connector?.name||'Banco'}</div><div style="font-size:0.72rem;color:var(--success)">✓ Conectado</div></div></div>`).join('');
+      const notice=document.getElementById('trial-limit-notice'); if(notice) notice.style.display='block';
+    } else if (state === 'premium') { renderPremiumConnectedItems(); }
+  } catch(e) {}
+}
+window.restoreConnectedItems = restoreConnectedItems;
+
+function renderPremiumConnectedItems() {
+  const el = document.getElementById('premium-connected-items');
+  const addWrap = document.getElementById('premium-add-btn-wrap');
+  if (!el) return;
+  const ci = window.connectedItems || [];
+  el.innerHTML = ci.length === 0 ? '<div style="text-align:center;padding:16px;color:var(--muted);font-size:0.85rem">Nenhum banco conectado ainda.</div>' : ci.map(i=>`<div style="display:flex;align-items:center;gap:12px;background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.2);border-radius:12px;padding:12px 16px;margin-bottom:8px"><span style="font-size:1.4rem">🏦</span><div style="flex:1"><div style="font-size:0.88rem;font-weight:600">${i.details?.connector?.name||'Banco conectado'}</div><div style="font-size:0.72rem;color:var(--success)">✓ Conectado</div></div></div>`).join('');
+  if (addWrap) { addWrap.innerHTML = ci.length >= 2 ? '<div style="background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:12px;padding:12px 16px;text-align:center;font-size:0.8rem;color:var(--muted)">🔒 Limite de 2 bancos atingido no Premium</div>' : `<button class="btn-outline" onclick="openPluggyConnect()" style="width:100%;padding:12px;margin-bottom:10px;font-size:0.85rem" id="pluggy-connect-btn">+ Adicionar banco (${ci.length}/2)</button>`; }
+}
+window.renderPremiumConnectedItems = renderPremiumConnectedItems;
+
+export function startTrial() {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  const btn = document.getElementById('start-trial-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Ativando...'; }
+  setTimeout(() => {
+    localStorage.setItem('finno_plan_'+uid,'trial');
+    localStorage.setItem('finno_trial_start_'+uid, Date.now().toString());
+    currentPlan = 'trial';
+    showConnectState('trial', uid);
+    toast('✓ Trial ativado! Conecte seu banco agora.','success');
+  }, 800);
+}
+window.startTrial = startTrial;
+
+export function skipToFree() {
+  const uid = auth.currentUser?.uid;
+  if (uid) { const cur=localStorage.getItem('finno_plan_'+uid); if(!cur||cur==='none') localStorage.setItem('finno_plan_'+uid,'free'); localStorage.setItem('finno_setup_'+uid,'1'); }
+  currentPlan = 'free';
+  showScreen('screen-loading');
+  runLoadingSequence(() => { showScreen('screen-dashboard'); buildDashboard(); applyPlanUI('free'); });
+}
+window.skipToFree = skipToFree;
+
+export function choosePlan(plan) {
+  if (plan === 'premium') { showPremiumPayment(); return; }
+  const uid = auth.currentUser?.uid;
+  if (uid) { localStorage.setItem('finno_plan_'+uid,'free'); localStorage.setItem('finno_setup_'+uid,'1'); }
+  currentPlan = 'free';
+  showScreen('screen-loading');
+  runLoadingSequence(() => { showScreen('screen-dashboard'); buildDashboard(); applyPlanUI('free'); });
+}
+window.choosePlan = choosePlan;
+
+export function showPremiumPayment() {
+  const existing = document.getElementById('payment-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'payment-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
+  overlay.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:32px 28px;max-width:420px;width:100%;box-shadow:0 40px 80px rgba(0,0,0,0.6)">
+    <div style="text-align:center;margin-bottom:24px"><div style="font-size:2.5rem;margin-bottom:10px">⭐</div><div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.3rem;margin-bottom:6px">Finno Premium</div><div style="font-family:Syne,sans-serif;font-weight:800;font-size:2rem;margin-bottom:4px">R$ 19,90<span style="font-size:1rem;font-weight:400;color:var(--muted)">/mês</span></div><div style="font-size:0.78rem;color:var(--success)">✓ Conecte até 2 bancos · Cancele quando quiser</div></div>
+    <div style="background:var(--surface2);border-radius:16px;padding:18px;margin-bottom:18px"><div style="font-size:0.72rem;color:var(--muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px">Dados do cartão</div><input placeholder="Número do cartão" id="card-number" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none;margin-bottom:10px" maxlength="19" oninput="formatCard(this)"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px"><input placeholder="MM/AA" id="card-expiry" style="background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none" maxlength="5" oninput="formatExpiry(this)"><input placeholder="CVV" id="card-cvv" style="background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none" maxlength="3" type="password"></div><input placeholder="Nome impresso no cartão" id="card-name" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none"></div>
+    <div id="payment-error" style="display:none;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);border-radius:10px;padding:10px 14px;font-size:0.8rem;color:var(--danger);margin-bottom:12px;text-align:center"></div>
+    <button id="pay-btn" onclick="processPayment()" style="width:100%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;border:none;border-radius:12px;padding:15px;font-family:Syne,sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;margin-bottom:10px">🔒 Assinar por R$ 19,90/mês</button>
+    <button onclick="document.getElementById('payment-overlay').remove()" style="width:100%;background:none;border:none;color:var(--muted);padding:10px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.82rem">Cancelar</button>
+    <div style="text-align:center;font-size:0.7rem;color:var(--muted);margin-top:10px">🔒 Pagamento seguro via SSL</div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+window.showPremiumPayment = showPremiumPayment;
+
+function formatCard(input) {
+  let v = input.value.replace(/\D/g,'').slice(0,16);
+  v = v.replace(/(\d{4})(?=\d)/g,'$1 ');
+  input.value = v;
+}
+window.formatCard = formatCard;
+
+export function formatExpiry(input) {
+  let v = input.value.replace(/\D/g,'').slice(0,4);
+  if (v.length > 2) v = v.slice(0,2)+'/'+v.slice(2);
+  input.value = v;
+}
+window.formatExpiry = formatExpiry;
+
+export function processPayment() {
+  const number = document.getElementById('card-number')?.value.replace(/\s/g,'');
+  const expiry = document.getElementById('card-expiry')?.value;
+  const cvv = document.getElementById('card-cvv')?.value;
+  const name = document.getElementById('card-name')?.value.trim();
+  const errEl = document.getElementById('payment-error');
+  if (!number||number.length<13){errEl.textContent='Número inválido.';errEl.style.display='block';return;}
+  if (!expiry||expiry.length<5){errEl.textContent='Validade inválida.';errEl.style.display='block';return;}
+  if (!cvv||cvv.length<3){errEl.textContent='CVV inválido.';errEl.style.display='block';return;}
+  if (!name){errEl.textContent='Informe o nome no cartão.';errEl.style.display='block';return;}
+  errEl.style.display='none';
+  const btn=document.getElementById('pay-btn'); btn.disabled=true; btn.textContent='⏳ Processando...';
+  setTimeout(()=>{
+    const uid=auth.currentUser?.uid;
+    if(uid){localStorage.setItem('finno_plan_'+uid,'premium');localStorage.setItem('finno_setup_'+uid,'1');}
+    currentPlan='premium'; document.getElementById('payment-overlay')?.remove();
+    toast('✓ Premium ativado! Bem-vindo ao Finno Premium 🚀','success');
+    const screen=document.querySelector('.screen.active')?.id;
+    if(screen==='screen-connect'||screen==='screen-plan') showConnectState('premium',uid);
+    else applyPlanUI('premium');
+  },2200);
+}
+window.processPayment = processPayment;
+window.simulatePayment = processPayment;
+
+export function applyPlanUI(plan) {
+  currentPlan = plan;
+  const pi=document.getElementById('paywall-insights'); if(pi) pi.style.display=(plan==='free'||plan==='expired')?'flex':'none';
+  const pm=document.getElementById('paywall-metas'); if(pm) pm.style.display='none';
+  const banner=document.getElementById('bank-connect-banner'); if(banner) banner.style.display=['free','expired'].includes(plan)?'flex':'none';
+  const al=document.querySelector('.accounts-list'); if(al) al.style.display=['premium','trial'].includes(plan)?'flex':'none';
+  const sync=document.querySelector('.nav-sync'); if(sync) sync.style.display=['premium','trial'].includes(plan)?'flex':'none';
+  const ic=document.getElementById('insights-content'); if(ic) ic.style.display=(plan==='free'||plan==='expired')?'none':'block';
+  const avatar=document.getElementById('nav-avatar'); if(avatar&&plan==='premium'){avatar.style.background='linear-gradient(135deg,#7c6dfa,#fa6d9a)';avatar.title='Conta Premium ⭐';}
+  const badge=document.getElementById('menu-plan-badge');
+  if(badge){const labels={premium:'⭐ Premium',trial:'🔬 Trial ativo',free:'🆓 Gratuito',expired:'⚠️ Trial expirado'};badge.textContent=labels[plan]||'🆓 Gratuito';badge.style.color=plan==='premium'?'var(--accent)':'var(--muted)';badge.style.background=plan==='premium'?'rgba(124,109,250,0.15)':'rgba(255,255,255,0.06)';}
+  const fs=document.getElementById('plan-section-free'),ps=document.getElementById('plan-section-premium');
+  if(fs) fs.style.display=plan==='premium'?'none':'block';
+  if(ps) ps.style.display=plan==='premium'?'block':'none';
+}
+window.applyPlanUI = applyPlanUI;
+
+export function confirmCancelPremium() {
+  if (!confirm('Tem certeza que deseja cancelar o Premium?')) return;
+  const uid = auth.currentUser?.uid;
+  if (uid) localStorage.setItem('finno_plan_'+uid,'free');
+  currentPlan = 'free';
+  closeModal('modal-account');
+  applyPlanUI('free');
+  toast('Assinatura cancelada. Voltando ao plano gratuito.','success');
+}
+window.confirmCancelPremium = confirmCancelPremium;
+
+export function goToBankConnect() {
+  const uid = auth.currentUser?.uid;
+  const state = getPlanState(uid);
+  showScreen('screen-connect');
+  showConnectState(state, uid);
+}
+window.goToBankConnect = goToBankConnect;
+
+export function showUpgrade(msg) {
+  const el = document.getElementById('upgrade-msg');
+  if (el && msg) el.textContent = msg;
+  const modal = document.getElementById('modal-upgrade');
+  if (modal) modal.classList.add('open');
+}
+window.showUpgrade = showUpgrade;
+
+export function goToDashboard() {
+  const uid = auth.currentUser?.uid;
+  if (uid) localStorage.setItem('finno_setup_'+uid,'1');
+  const btn = document.getElementById('go-dashboard-btn');
+  if (btn) { btn.disabled=true; btn.textContent='Carregando...'; }
+  showScreen('screen-loading');
+  runLoadingSequence(() => { showScreen('screen-dashboard'); buildDashboard(); applyPlanUI(currentPlan); });
+}
+window.goToDashboard = goToDashboard;
+
+export function startConnect() {
+  showScreen('screen-loading');
+  runLoadingSequence(() => {
+    const uid = auth.currentUser?.uid;
+    if (uid) localStorage.setItem('finno_setup_'+uid,'1');
+    showScreen('screen-dashboard');
+    buildDashboard();
+    applyPlanUI(currentPlan);
+  });
+}
+window.startConnect = startConnect;
+
+// ── Pluggy integration ────────────────────────────────────────────
+export async function openPluggyConnect() {
+  const uid = auth.currentUser?.uid;
+  const state = getPlanState(uid);
+  const limit = getBankLimit(state);
+  const ci = window.connectedItems || [];
+
+  if (state === 'none' || state === 'free') {
+    showScreen('screen-connect'); showConnectState(state, uid);
+    toast('Ative o trial para conectar seu banco.','error'); return;
+  }
+  if (state === 'expired') { showScreen('screen-connect'); showConnectState('expired', uid); return; }
+  if (ci.length >= limit) {
+    toast(state==='trial'?'Limite de 1 banco no trial. Assine o Premium para mais.':'Limite de 2 bancos atingido.','error');
+    if (state==='trial') { const n=document.getElementById('trial-limit-notice'); if(n) n.style.display='block'; }
+    return;
+  }
+
+  const btn = document.getElementById('pluggy-connect-btn') || document.getElementById('pluggy-connect-btn-premium');
+  if (btn) { btn.disabled=true; btn.textContent='Gerando token...'; }
+
+  let connectToken = null;
+  try {
+    const ar = await fetch('https://api.pluggy.ai/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientId:PLUGGY_CLIENT_ID,clientSecret:PLUGGY_CLIENT_SECRET})});
+    const ad = await ar.json();
+    if (ad.apiKey) {
+      const tr = await fetch('https://api.pluggy.ai/connect_token',{method:'POST',headers:{'Content-Type':'application/json','X-API-KEY':ad.apiKey},body:JSON.stringify({clientUserId:uid||'user_finno'})});
+      connectToken = (await tr.json()).accessToken;
+    }
+  } catch(e) { console.warn('Pluggy CORS:', e.message); }
+
+  if (btn) { btn.disabled=false; btn.innerHTML='🏦 Escolher meu banco'; }
+  if (!connectToken) { showPluggySetupModal(); return; }
+  openPluggyModal(`https://connect.pluggy.ai?connectToken=${connectToken}`);
+}
+window.openPluggyConnect = openPluggyConnect;
+
+function showPluggySetupModal() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:32px 28px;max-width:440px;width:100%;box-shadow:0 40px 80px rgba(0,0,0,0.5)"><div style="font-size:2rem;margin-bottom:16px;text-align:center">🔧</div><div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.15rem;margin-bottom:10px;text-align:center">Configuração necessária</div><div style="color:var(--muted);font-size:0.82rem;line-height:1.7;margin-bottom:20px">A conexão bancária via Pluggy exige que o <b style="color:var(--text)">Connect Token</b> seja gerado no servidor (não no navegador), por segurança do Banco Central.</div><button onclick="this.closest('[style*=fixed]').remove()" style="width:100%;background:var(--accent);color:white;border:none;border-radius:12px;padding:14px;font-family:Syne,sans-serif;font-weight:700;cursor:pointer">Entendido</button></div>`;
+  document.body.appendChild(overlay);
+}
+window.showPluggySetupModal = showPluggySetupModal;
+
+function openPluggyModal(url) {
+  const overlay = document.createElement('div');
+  overlay.id = 'pluggy-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:9000;display:flex;flex-direction:column';
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0';
+  header.innerHTML = `<div style="display:flex;align-items:center;gap:10px"><span style="font-size:1.2rem">🏦</span><div><div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem">Conectar banco</div><div style="font-size:0.72rem;color:var(--muted)">Mais de 200 instituições disponíveis</div></div></div><button id="pluggy-close-btn" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 16px;color:var(--text);cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.82rem">✕ Fechar</button>`;
+  const loader = document.createElement('div');
+  loader.style.cssText = 'position:absolute;inset:57px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);gap:16px;z-index:1';
+  loader.innerHTML = `<div style="font-family:Syne,sans-serif;font-weight:700;font-size:1rem">Carregando widget...</div><div style="width:36px;height:36px;border:3px solid rgba(124,109,250,0.2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite"></div>`;
+  const iframe = document.createElement('iframe');
+  iframe.src = url; iframe.style.cssText = 'flex:1;width:100%;border:none;background:#fff;opacity:0;transition:opacity 0.3s;position:relative;z-index:2';
+  iframe.allow = 'camera;microphone;clipboard-write';
+  iframe.onload = () => { iframe.style.opacity='1'; loader.style.display='none'; };
+  const content = document.createElement('div');
+  content.style.cssText = 'flex:1;position:relative;display:flex;flex-direction:column';
+  content.appendChild(loader); content.appendChild(iframe);
+  overlay.appendChild(header); overlay.appendChild(content);
+  document.body.appendChild(overlay);
+  document.getElementById('pluggy-close-btn').onclick = () => { window.removeEventListener('message', handlePluggyMsg); overlay.remove(); };
+  function handlePluggyMsg(event) {
+    if (!event.origin.includes('pluggy')) return;
+    const { type, data } = event.data || {};
+    const successTypes = ['pluggy:connect:success','pluggy:item:created','pluggy:item:updated','pluggy:createItem'];
+    if (successTypes.includes(type)) { window.removeEventListener('message', handlePluggyMsg); overlay.remove(); onBankConnected(data || {}); }
+    if (['pluggy:connect:close','pluggy:close','pluggy:exit'].includes(type)) { window.removeEventListener('message', handlePluggyMsg); overlay.remove(); }
+  }
+  window.addEventListener('message', handlePluggyMsg);
+}
+window.openPluggyModal = openPluggyModal;
+
+async function onBankConnected(itemData) {
+  const uid = auth.currentUser?.uid;
+  const state = getPlanState(uid);
+  const limit = getBankLimit(state);
+  const ci = window.connectedItems || [];
+  if (ci.length >= limit) { toast('Limite de bancos atingido.','error'); return; }
+  const itemId = itemData?.item?.id||itemData?.id||itemData?.itemId||('item_'+Date.now());
+  const name = itemData?.connector?.name||itemData?.item?.connector?.name||'Banco conectado';
+  ci.push({ id:itemId, details:{ connector:{ name } } });
+  window.connectedItems = ci;
+  if (uid) localStorage.setItem('finno_banks_'+uid, JSON.stringify(ci.map(i=>i.id)));
+  toast('Banco conectado com sucesso! ✓','success');
+  if (state === 'trial') {
+    const listEl=document.getElementById('connected-accounts-list'); const itemsEl=document.getElementById('connected-items'); const goBtn=document.getElementById('go-dashboard-btn'); const connectBtn=document.getElementById('pluggy-connect-btn');
+    if(listEl) listEl.style.display='block'; if(goBtn) goBtn.style.display='block'; if(connectBtn) connectBtn.style.display='none';
+    if(itemsEl){const el=document.createElement('div');el.className='checkmark-anim';el.style.cssText='display:flex;align-items:center;gap:12px;background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.2);border-radius:12px;padding:12px 16px;margin-bottom:8px';el.innerHTML=`<span style="font-size:1.4rem">🏦</span><div style="flex:1"><div style="font-size:0.88rem;font-weight:600">${name}</div><div style="font-size:0.72rem;color:var(--success)">✓ Conectado</div></div>`;itemsEl.appendChild(el);}
+    const notice=document.getElementById('trial-limit-notice'); if(notice) notice.style.display='block';
+  } else if (state === 'premium') { renderPremiumConnectedItems(); }
+}
+window.onBankConnected = onBankConnected;
+
+export function buildDashboardWithRealData(data) {
+  showScreen('screen-dashboard');
+  const { accounts, transactions: txs } = data;
+  const totalBalance = accounts.reduce((sum,a)=>sum+(a.balance||0),0);
+  const income = txs.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);
+  const expenses = txs.filter(t=>t.amount<0).reduce((s,t)=>s+Math.abs(t.amount),0);
+  const balEl = document.querySelector('.balance-amount');
+  if (balEl) { const fmt=Math.abs(totalBalance).toLocaleString('pt-BR',{minimumFractionDigits:2}); const [int,dec]=fmt.split(','); balEl.innerHTML=`<span>R$</span> ${int}<span style="font-size:1.6rem">,${dec}</span>`; }
+  buildRealAccounts(accounts);
+  buildRealTransactions(txs);
+  buildRealCategories(txs);
+  buildGoals();
+  buildInsights();
+  buildChart();
+}
+window.buildDashboardWithRealData = buildDashboardWithRealData;
+
+export function buildRealAccounts(accounts) {
+  const list = document.querySelector('.accounts-list');
+  if (!list) return;
+  const typeLabels = { CHECKING:'Conta Corrente', SAVINGS:'Poupança', CREDIT:'Cartão de Crédito', INVESTMENT:'Investimento' };
+  const typeIcons = { CHECKING:'🏦', SAVINGS:'💰', CREDIT:'💳', INVESTMENT:'📈' };
+  list.innerHTML = accounts.map(acc => {
+    const isNeg=(acc.balance||0)<0; const type=typeLabels[acc.type]||acc.type||'Conta'; const icon=typeIcons[acc.type]||'🏦'; const last4=acc.number?acc.number.slice(-4):'****';
+    return `<div class="account-card"><div class="account-icon" style="background:rgba(124,109,250,0.12)">${icon}</div><div class="account-info"><div class="name">${acc.bankName||acc.name||type}</div><div class="type">${type} · •••• ${last4}</div></div><div class="account-balance"><div class="amount" style="${isNeg?'color:var(--danger)':''}">${isNeg?'−':''}R$ ${Math.abs(acc.balance||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div class="sync-time">agora</div></div></div>`;
+  }).join('');
+}
+window.buildRealAccounts = buildRealAccounts;
+
+export function buildRealTransactions(txs) {
+  const list = document.getElementById('tx-list');
+  if (!list) return;
+  const sorted = [...txs].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,60);
+  const catEmoji = cat => { const map={Food:'🛒',Transport:'🚗',Housing:'🏠',Health:'💊',Entertainment:'🎮',Shopping:'👗',Services:'📱',Income:'💰',Investment:'📈'}; for(const[k,v]of Object.entries(map)) if(cat&&cat.includes(k)) return v; return '💸'; };
+  const groups = {}; sorted.forEach(tx=>{ const date=(tx.date||'').split('T')[0]||'Sem data'; if(!groups[date]) groups[date]=[]; groups[date].push(tx); });
+  const fmtDate = d => { const dt=new Date(d+'T00:00:00'); const hoje=new Date(); hoje.setHours(0,0,0,0); const diff=Math.round((hoje-dt)/86400000); if(diff===0) return 'Hoje'; if(diff===1) return 'Ontem'; return dt.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'short'}); };
+  list.innerHTML = Object.entries(groups).map(([date,txs2]) => `<div class="tx-date-group"><div class="tx-date-label">${fmtDate(date)}</div>${txs2.map(tx=>{const amt=tx.amount||0;const isPos=amt>0;return`<div class="tx-item"><div class="tx-emoji">${catEmoji(tx.category)}</div><div class="tx-info"><div class="desc">${tx.description||tx.descriptionRaw||'Transação'}</div><div class="cat">${tx.category||'Outros'} · ${tx.bankName||''}</div></div><div class="tx-amount ${isPos?'positive':'negative'}">${isPos?'+':''}R$ ${Math.abs(amt).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>`;}).join('')}</div>`).join('');
+}
+window.buildRealTransactions = buildRealTransactions;
+
+export function buildRealCategories(txs) {
+  const list = document.getElementById('cat-list');
+  if (!list) return;
+  const catColors={Food:'#6dfac8',Transport:'#fa6d9a',Housing:'#7c6dfa',Health:'#fbbf24',Entertainment:'#f87171',Shopping:'#34d399',Services:'#818cf8',Others:'#94a3b8'};
+  const catNames={Food:'🛒 Alimentação',Transport:'🚗 Transporte',Housing:'🏠 Moradia',Health:'💊 Saúde',Entertainment:'🎮 Lazer',Shopping:'👗 Compras',Services:'📱 Assinaturas',Others:'🔧 Outros'};
+  const catMap={};
+  txs.filter(t=>t.amount<0).forEach(tx=>{const key=Object.keys(catColors).find(k=>tx.category&&tx.category.includes(k))||'Others';catMap[key]=(catMap[key]||0)+Math.abs(tx.amount);});
+  const total=Object.values(catMap).reduce((a,b)=>a+b,0);
+  list.innerHTML=Object.entries(catMap).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>{const pct=total>0?Math.round((amt/total)*100):0;return`<div class="cat-item"><div class="cat-row"><div class="name">${catNames[cat]||cat}</div><div style="display:flex;gap:10px;align-items:center"><div class="pct">${pct}%</div><div class="amount">R$ ${amt.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div></div><div class="cat-bar"><div class="cat-fill" style="width:${pct}%;background:${catColors[cat]||'#94a3b8'}"></div></div></div>`;}).join('');
+}
+window.buildRealCategories = buildRealCategories;
+
+// ── Home panel ────────────────────────────────────────────────────
+let homePeriod = 'month';
+
+export function buildHomePanel() {
+  updateHomeGreeting();
+  buildHomeDonut();
+  buildHomeInsights();
+  updateHomePlanUI();
+  animateHomeBalance();
+}
+window.buildHomePanel = buildHomePanel;
+
+function updateHomeGreeting() {
+  const user = auth.currentUser;
+  const nameEl = document.getElementById('home-user-name');
+  if (!nameEl) return;
+  const name = user?.displayName || user?.email?.split('@')[0] || '';
+  const firstName = name.split(' ')[0];
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+  nameEl.textContent = firstName ? greeting + ', ' + firstName + ' 👋' : 'Bem-vindo ao Finno 👋';
+}
+window.updateHomeGreeting = updateHomeGreeting;
+
+function animateHomeBalance() {
+  const intEl = document.getElementById('home-balance-int');
+  if (!intEl) return;
+  const target = 12847.30;
+  const dur = 1000;
+  const start = Date.now();
+  function tick() {
+    const p = Math.min((Date.now()-start)/dur,1);
+    const eased = 1 - Math.pow(1-p,3);
+    const val = target * eased;
+    const parts = val.toLocaleString('pt-BR',{minimumFractionDigits:2}).split(',');
+    intEl.textContent = parts[0];
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+window.animateHomeBalance = animateHomeBalance;
+
+export function setHomePeriod(btn, period) {
+  homePeriod = period;
+  document.querySelectorAll('.period-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  const multipliers = { month:1, week:0.25, all:6 };
+  const m = multipliers[period] || 1;
+  const exp = (4213.70*m).toLocaleString('pt-BR',{maximumFractionDigits:0});
+  const inc = (8500*m).toLocaleString('pt-BR',{maximumFractionDigits:0});
+  const avail = ((8500-4213.70)*m).toLocaleString('pt-BR',{maximumFractionDigits:0});
+  const expEl=document.getElementById('home-expenses'); const incEl=document.getElementById('home-income'); const avEl=document.getElementById('home-available');
+  if(expEl) expEl.textContent='R$ '+exp; if(incEl) incEl.textContent='R$ '+inc; if(avEl) avEl.textContent='R$ '+avail;
+  buildHomeDonut();
+}
+window.setHomePeriod = setHomePeriod;
+
+export function buildHomeDonut() {
+  const svg = document.getElementById('home-donut');
+  const legendEl = document.getElementById('home-chart-legend');
+  const totalEl = document.getElementById('home-donut-total');
+  if (!svg || !legendEl) return;
+  const multipliers = { month:1, week:0.25, all:6 };
+  const m = multipliers[homePeriod] || 1;
+  const cats = HOME_CATEGORIES.map(c => ({ ...c, amount: c.amount * m }));
+  const total = cats.reduce((s,c)=>s+c.amount,0);
+  if (totalEl) totalEl.textContent = 'R$'+(total/1000).toFixed(1)+'k';
+  const cx=55,cy=55,r=38,stroke=14,circ=2*Math.PI*r;
+  let offset=0,svgInner=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="${stroke}"/>`;
+  cats.forEach(cat=>{const pct=cat.amount/total;const dash=pct*circ;const gap=2;svgInner+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${cat.color}" stroke-width="${stroke-2}" stroke-dasharray="${Math.max(dash-gap,0)} ${circ-Math.max(dash-gap,0)}" stroke-dashoffset="${-offset}" stroke-linecap="round" transform="rotate(-90 ${cx} ${cy})" style="transition:stroke-dasharray 0.8s ease"/>`;offset+=dash;});
+  svg.innerHTML = svgInner;
+  legendEl.innerHTML = cats.slice(0,4).map(cat=>{const pct=Math.round((cat.amount/total)*100);return`<div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:2px;background:${cat.color};flex-shrink:0"></div><div style="flex:1;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:4px"><span style="font-size:0.75rem;color:rgba(180,210,255,0.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cat.icon} ${cat.name}</span><span style="font-size:0.72rem;font-weight:700;color:#fff;white-space:nowrap">${pct}%</span></div></div>`;}).join('');
+}
+window.buildHomeDonut = buildHomeDonut;
+
+export function buildHomeInsights() {
+  const el = document.getElementById('home-insights-chips');
+  if (!el) return;
+  const generated = generateInsights();
+  const top3 = generated.insights.slice(0, 3);
+  el.innerHTML = top3.map(ins => `<div class="home-insight-chip" onclick="switchTab('insights')" style="cursor:pointer"><div class="home-insight-icon" style="background:${ins.color}22">${ins.icon}</div><div class="home-insight-text"><strong>${ins.title}</strong> — ${ins.text.split('.')[0]}.</div><div class="home-insight-arrow">›</div></div>`).join('');
+}
+window.buildHomeInsights = buildHomeInsights;
+
+export function updateHomePlanUI() {
+  const uid = auth.currentUser?.uid;
+  const state = getPlanState(uid);
+  const ctaEl=document.getElementById('home-bank-cta'); const accsEl=document.getElementById('home-accounts-section'); const syncEl=document.getElementById('home-sync-text');
+  if (state === 'premium' || state === 'trial') {
+    if(ctaEl) ctaEl.style.display='none'; if(accsEl) accsEl.style.display='block';
+    if(syncEl) syncEl.textContent='Atualizado automaticamente';
+    buildHomeAccounts();
+  } else {
+    if(ctaEl) ctaEl.style.display='block'; if(accsEl) accsEl.style.display='none';
+    if(syncEl) syncEl.textContent='Conecte seu banco para sincronizar';
+  }
+}
+window.updateHomePlanUI = updateHomePlanUI;
+
+function buildHomeAccounts() {
+  const el = document.getElementById('home-accounts-list');
+  if (!el) return;
+  el.innerHTML = HOME_ACCOUNTS.map(acc => {
+    const isNeg=acc.balance<0;
+    return `<div class="home-account-row"><div class="home-account-dot"></div><div style="font-size:1.2rem">${acc.icon}</div><div style="flex:1;min-width:0"><div style="font-size:0.85rem;font-weight:600;color:#e8f0ff">${acc.name}</div><div style="font-size:0.72rem;color:rgba(180,210,255,0.5);margin-top:1px">${acc.type} · •••• ${acc.last4}</div></div><div style="text-align:right;flex-shrink:0"><div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:${isNeg?'#ff6b6b':'#fff'}">${isNeg?'−':''}R$ ${Math.abs(acc.balance).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div style="font-size:0.65rem;color:#00c896;margin-top:1px">● ao vivo</div></div></div>`;
+  }).join('');
+}
+window.buildHomeAccounts = buildHomeAccounts;
+
+// ── Simulation ────────────────────────────────────────────────────
+const SIM_DATA = {
+  balance: 3250.00, bank: 'Nubank', income: 6000.00, expenses: 2750.00,
+  categories: [
+    { name:'Moradia',     icon:'🏠', amount:1200, color:'#7c6dfa', bg:'rgba(124,109,250,0.12)' },
+    { name:'Alimentação', icon:'🛒', amount:800,  color:'#6dfac8', bg:'rgba(109,250,200,0.12)' },
+    { name:'Lazer',       icon:'🎮', amount:450,  color:'#fa6d9a', bg:'rgba(250,109,154,0.12)' },
+    { name:'Transporte',  icon:'🚗', amount:300,  color:'#fbbf24', bg:'rgba(251,191,36,0.12)'  },
+  ],
+  transactions: [
+    { date:'Hoje',  icon:'🛒', desc:'Supermercado Extra',  cat:'Alimentação', amount:-187.40, color:'rgba(109,250,200,0.12)' },
+    { date:'Hoje',  icon:'💰', desc:'Salário',             cat:'Receita',     amount:6000.00, color:'rgba(74,222,128,0.12)'  },
+    { date:'Ontem', icon:'🏠', desc:'Aluguel',             cat:'Moradia',     amount:-1200.00,color:'rgba(124,109,250,0.12)' },
+    { date:'Ontem', icon:'🎮', desc:'Netflix',             cat:'Lazer',       amount:-44.90,  color:'rgba(250,109,154,0.12)' },
+    { date:'Ontem', icon:'🚗', desc:'Uber',                cat:'Transporte',  amount:-28.50,  color:'rgba(251,191,36,0.12)'  },
+    { date:'Seg',   icon:'☕', desc:'Cafeteria Bloom',     cat:'Alimentação', amount:-32.00,  color:'rgba(109,250,200,0.12)' },
+    { date:'Seg',   icon:'💊', desc:'Farmácia Drogasil',   cat:'Saúde',       amount:-67.80,  color:'rgba(248,113,113,0.12)' },
+    { date:'Dom',   icon:'🎬', desc:'Cinema Cinemark',     cat:'Lazer',       amount:-72.00,  color:'rgba(250,109,154,0.12)' },
+    { date:'Dom',   icon:'⛽', desc:'Posto BR',            cat:'Transporte',  amount:-180.00, color:'rgba(251,191,36,0.12)'  },
+  ]
+};
+
+let simPreviousScreen = 'screen-plan';
+
+export function showSimulation() {
+  const active = document.querySelector('.screen.active');
+  if (active) simPreviousScreen = active.id;
+  showScreen('screen-simulation');
+  renderSimulation();
+}
+window.showSimulation = showSimulation;
+
+export function exitSimulation() {
+  showScreen(simPreviousScreen || 'screen-plan');
+}
+window.exitSimulation = exitSimulation;
+
+export function goToConnectFromSim() {
+  const uid = auth.currentUser?.uid;
+  const state = getPlanState(uid);
+  showScreen('screen-connect');
+  showConnectState(state === 'none' || state === 'free' ? 'free' : state, uid);
+}
+window.goToConnectFromSim = goToConnectFromSim;
+
+export function renderSimulation() {
+  animateBalance();
+  renderDonut();
+  renderSimCatBars();
+  renderSimTransactions();
+  setTimeout(() => { const bar=document.getElementById('sim-health-bar'); if(bar) bar.style.width='78%'; }, 600);
+}
+window.renderSimulation = renderSimulation;
+
+export function animateBalance() {
+  const el = document.getElementById('sim-balance-display');
+  if (!el) return;
+  const target = SIM_DATA.balance;
+  const duration = 1200;
+  const start = Date.now();
+  function tick() {
+    const progress = Math.min((Date.now()-start)/duration,1);
+    const eased = 1 - Math.pow(1-progress,3);
+    el.textContent = 'R$ ' + (target*eased).toLocaleString('pt-BR',{minimumFractionDigits:2});
+    if (progress < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+window.animateBalance = animateBalance;
+
+export function renderDonut() {
+  const svg = document.getElementById('sim-donut');
+  const legendEl = document.getElementById('sim-legend');
+  if (!svg || !legendEl) return;
+  const total = SIM_DATA.categories.reduce((s,c)=>s+c.amount,0);
+  const cx=60,cy=60,r=44,stroke=18,circ=2*Math.PI*r;
+  let offset=0,svgContent='';
+  SIM_DATA.categories.forEach(cat=>{const pct=cat.amount/total;const dash=pct*circ;svgContent+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${cat.color}" stroke-width="${stroke}" stroke-dasharray="${dash} ${circ-dash}" stroke-dashoffset="${-offset}" stroke-linecap="butt" transform="rotate(-90 ${cx} ${cy})" style="transition:stroke-dasharray 1s ease"/>`;offset+=dash;});
+  svgContent+=`<text x="${cx}" y="${cy-4}" text-anchor="middle" fill="#f0f0f8" font-family="Syne" font-weight="800" font-size="11">R$</text>`;
+  svgContent+=`<text x="${cx}" y="${cy+10}" text-anchor="middle" fill="#f0f0f8" font-family="Syne" font-weight="800" font-size="13">${(total/1000).toFixed(1)}k</text>`;
+  svg.innerHTML = svgContent;
+  legendEl.innerHTML = SIM_DATA.categories.map(cat=>{const pct=Math.round((cat.amount/total)*100);return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="width:10px;height:10px;border-radius:3px;background:${cat.color};flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="font-size:0.78rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cat.icon} ${cat.name}</div><div style="font-size:0.7rem;color:var(--muted)">R$ ${cat.amount.toLocaleString('pt-BR')} · ${pct}%</div></div></div>`;}).join('');
+}
+window.renderDonut = renderDonut;
+
+export function renderSimCatBars() {
+  const el = document.getElementById('sim-cat-bars');
+  if (!el) return;
+  const total = SIM_DATA.categories.reduce((s,c)=>s+c.amount,0);
+  el.innerHTML = SIM_DATA.categories.map(cat=>{const pct=Math.round((cat.amount/total)*100);return`<div class="sim-cat-bar-row"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="display:flex;align-items:center;gap:8px;font-size:0.85rem;font-weight:500"><span style="width:28px;height:28px;border-radius:8px;background:${cat.bg};display:inline-flex;align-items:center;justify-content:center;font-size:0.85rem">${cat.icon}</span>${cat.name}</div><div style="text-align:right"><div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.88rem">R$ ${cat.amount.toLocaleString('pt-BR')}</div><div style="font-size:0.7rem;color:var(--muted)">${pct}% dos gastos</div></div></div><div style="height:6px;background:var(--surface2);border-radius:99px;overflow:hidden"><div style="height:100%;width:0%;background:${cat.color};border-radius:99px;transition:width 1s ease" data-width="${pct}%"></div></div></div>`;}).join('');
+  setTimeout(()=>{el.querySelectorAll('[data-width]').forEach(bar=>{bar.style.width=bar.dataset.width;});},400);
+}
+window.renderSimCatBars = renderSimCatBars;
+
+export function renderSimTransactions() {
+  const el = document.getElementById('sim-tx-list');
+  if (!el) return;
+  const groups = {};
+  SIM_DATA.transactions.forEach(tx=>{if(!groups[tx.date]) groups[tx.date]=[];groups[tx.date].push(tx);});
+  let html='';
+  for(const[date,txs]of Object.entries(groups)){
+    html+='<div><div style="font-size:0.7rem;color:var(--muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:10px 0 6px">'+date+'</div>';
+    txs.forEach(tx=>{const isPos=tx.amount>0;const amtStr=(isPos?'+':'')+'R$ '+Math.abs(tx.amount).toLocaleString('pt-BR',{minimumFractionDigits:2});const color=isPos?'var(--success)':'var(--text)';html+='<div class="sim-tx-item"><div class="sim-tx-icon" style="background:'+tx.color+'">'+tx.icon+'</div><div style="flex:1;min-width:0"><div style="font-size:0.86rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+tx.desc+'</div><div style="font-size:0.72rem;color:var(--muted);margin-top:2px">'+tx.cat+'</div></div><div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:'+color+';flex-shrink:0">'+amtStr+'</div></div>';});
+    html+='</div>';
+  }
+  el.innerHTML = html;
+}
+window.renderSimTransactions = renderSimTransactions;
+
+export function maybeShowSimTease() {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  const alreadySeen = localStorage.getItem('finno_sim_seen_'+uid);
+  if (!alreadySeen) {
+    localStorage.setItem('finno_sim_seen_'+uid,'1');
+    setTimeout(()=>{ const active=document.querySelector('.screen.active'); if(active&&active.id==='screen-plan') showSimulation(); },1500);
+  }
+}
+window.maybeShowSimTease = maybeShowSimTease;
