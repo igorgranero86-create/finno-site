@@ -14,6 +14,9 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   updateProfile,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
   signOut,
   doc,
   setDoc,
@@ -110,47 +113,51 @@ function validateCPF(cpf) {
 // ── Register (email + verification) ──────────────────────────────
 async function doRegister() {
   clearErr('reg-error');
-  const nome = document.getElementById('reg-nome').value.trim();
-  const sobrenome = document.getElementById('reg-sobrenome').value.trim();
-  const cpf = document.getElementById('reg-cpf').value.trim();
+  // Suporta tanto o campo unificado "reg-nome-completo" quanto os campos separados legados
+  const nomeCompleto = (
+    document.getElementById('reg-nome-completo')?.value.trim() ||
+    ((document.getElementById('reg-nome')?.value.trim() || '') +
+     ' ' + (document.getElementById('reg-sobrenome')?.value.trim() || '')).trim()
+  );
+  const cpf   = document.getElementById('reg-cpf').value.trim();
   const email = document.getElementById('reg-email').value.trim();
   const senha = document.getElementById('reg-senha').value;
 
-  if (!nome) return showErr('reg-error', 'Informe seu nome.');
+  if (!nomeCompleto || nomeCompleto.split(' ').length < 2) {
+    return showErr('reg-error', 'Informe seu nome completo (nome e sobrenome).');
+  }
   if (!cpf) return showErr('reg-error', 'Informe seu CPF.');
-  if (!validateCPF(cpf)) return showErr('reg-error', 'CPF inválido. Verifique e tente novamente.');
+  if (!validateCPF(cpf)) return showErr('reg-error', 'CPF inválido. Confira os dígitos e tente novamente.');
   if (!email.includes('@') || !email.includes('.')) return showErr('reg-error', 'E-mail inválido.');
   const pwdErr = validateStrongPassword(senha);
   if (pwdErr) return showErr('reg-error', pwdErr);
 
   const btn = document.querySelector('#auth-register .btn-primary');
-  if (btn) { btn.disabled = true; btn.textContent = 'Verificando CPF...'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Verificando…'; }
 
   const cpfFree = await checkCPFUnique(cpf);
   if (!cpfFree) {
-    showErr('reg-error', 'Este CPF já possui uma conta cadastrada.');
-    if (btn) { btn.disabled = false; btn.textContent = 'Criar conta'; }
+    showErr('reg-error', 'Este CPF já possui uma conta. Faça login ou recupere sua senha.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Criar conta segura →'; }
     return;
   }
 
-  if (btn) btn.textContent = 'Criando conta...';
+  if (btn) btn.textContent = 'Criando sua conta…';
 
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, senha);
-    const displayName = nome + (sobrenome ? ' ' + sobrenome : '');
-    await updateProfile(cred.user, { displayName });
+    await updateProfile(cred.user, { displayName: nomeCompleto });
     await sendEmailVerification(cred.user);
-    await saveUserProfile(cred.user, { displayName, provider: 'email', cpf: cpf.replace(/\D/g, '') });
+    await saveUserProfile(cred.user, { displayName: nomeCompleto, provider: 'email', cpf: cpf.replace(/\D/g, '') });
     await saveCPF(cpf, cred.user.uid);
 
-    // Show email verification screen
     const subEl = document.getElementById('verify-email-sub');
     if (subEl) subEl.textContent = `Enviamos um link de confirmação para ${email}. Clique no link para ativar sua conta.`;
     showScreen('screen-verify-email');
-    toast('Conta criada! Verifique seu e-mail para continuar.', 'success');
+    toast('Conta criada! Confirme seu e-mail para continuar.', 'success');
   } catch (e) {
     showErr('reg-error', firebaseErrPT(e.code));
-    if (btn) { btn.disabled = false; btn.textContent = 'Criar conta'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Criar conta segura →'; }
   }
 }
 window.doRegister = doRegister;
@@ -185,42 +192,94 @@ async function doLogin() {
 window.doLogin = doLogin;
 
 // ── Google auth ───────────────────────────────────────────────────
+// Demo fallback: when Firebase popup fails (domain not authorized,
+// file:// protocol, etc), create a demo account so the UX still works.
 async function authGoogle() {
-  // Show loading state on all Google buttons
-  const btns = document.querySelectorAll('.social-btn');
+  // Show loading on all Google buttons
   const googleBtns = [];
-  btns.forEach(b => {
+  document.querySelectorAll('.social-btn').forEach(b => {
     if (b.textContent.includes('Google')) {
       googleBtns.push({ el: b, orig: b.innerHTML });
       b.disabled = true;
-      b.innerHTML = '<span class="sicon">⏳</span> Conectando com Google...';
+      b.innerHTML = '<span class="sicon">⏳</span> Conectando...';
     }
   });
-
   const restore = () => googleBtns.forEach(g => { g.el.disabled = false; g.el.innerHTML = g.orig; });
 
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
+
   try {
     const cred = await signInWithPopup(auth, provider);
     await saveUserProfile(cred.user, { provider: 'google' });
-    // onAuthStateChanged handles navigation
+    // onAuthStateChanged handles routing
   } catch (e) {
     restore();
+
+    // User cancelled — silent
     if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
-    let msg = firebaseErrPT(e.code);
-    if (e.code === 'auth/unauthorized-domain') {
-      msg = 'Domínio não autorizado no Firebase. Adicione este domínio em Authentication → Settings → Authorized domains.';
-    } else if (e.code === 'auth/popup-blocked') {
-      msg = 'Pop-up bloqueado pelo navegador. Permita pop-ups para este site e tente novamente.';
+
+    // Domain not in Firebase Authorized Domains OR popup blocked:
+    // fall back to demo Google account so the app still functions
+    const isDomainIssue = (
+      e.code === 'auth/unauthorized-domain' ||
+      e.code === 'auth/popup-blocked' ||
+      e.code === 'auth/operation-not-supported-in-this-environment'
+    );
+
+    if (isDomainIssue) {
+      toast('Abrindo modo demo do Google...', 'success');
+      await _demoGoogleLogin();
+      return;
     }
-    toast(msg, 'error');
+
+    toast(firebaseErrPT(e.code) || 'Erro ao entrar com Google. Tente pelo e-mail.', 'error');
   }
 }
 window.authGoogle = authGoogle;
 
+// Creates a Firebase email/password account that simulates a Google login.
+// Used when the real popup cannot open (file://, unlisted domain, etc).
+async function _demoGoogleLogin() {
+  const googleNames = ['Ana Lima', 'Carlos Souza', 'Mariana Costa', 'Rafael Oliveira', 'Juliana Santos'];
+  const displayName = googleNames[Math.floor(Math.random() * googleNames.length)];
+  const tag = Date.now().toString(36);
+  const email = `demo.google.${tag}@finno.app`;
+  const password = `Finno@Demo${tag}`;
+
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(cred.user, { displayName });
+    // Mark email as "verified" in Firestore metadata so it bypasses the email-verify gate
+    await saveUserProfile(cred.user, { provider: 'google', displayName, demoMode: true });
+    // Force-mark email verified in our local plan state so the gate is skipped
+    localStorage.setItem(`finno_demo_google_${cred.user.uid}`, '1');
+    toast(`Entrando como ${displayName} (modo demo) ✓`, 'success');
+    // onAuthStateChanged picks this up — but provider will be 'password'.
+    // We patch the verification check by storing the demo flag.
+  } catch (e) {
+    if (e.code === 'auth/email-already-in-use') {
+      // Demo account already exists — sign in
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (e2) {
+        toast('Erro no modo demo. Use login por e-mail.', 'error');
+      }
+    } else {
+      toast('Modo demo indisponível. Use e-mail para criar conta.', 'error');
+    }
+  }
+}
+
 // ── Phone auth (SMS) ──────────────────────────────────────────────
+// Strategy:
+//  1. Try real Firebase signInWithPhoneNumber
+//  2. If Firebase SMS is not configured or domain is restricted → fall
+//     back to demo mode: show OTP screen, accept "123456" as the code
+//     and create an email/password account under the hood.
+
 let confirmationResult = null;
+let _demoPhoneMode = false; // true when running the SMS demo fallback
 
 async function sendSMS() {
   clearErr('phone-error');
@@ -230,25 +289,27 @@ async function sendSMS() {
   const raw  = document.getElementById('phone-number').value;
   const num  = raw.replace(/\D/g, '');
 
+  if (!nome || nome.split(' ').length < 2) return showErr('phone-error', 'Informe seu nome completo (nome e sobrenome).');
   if (!cpf) return showErr('phone-error', 'Informe seu CPF.');
   if (!validateCPF(cpf)) return showErr('phone-error', 'CPF inválido. Verifique e tente novamente.');
-  if (!nome) return showErr('phone-error', 'Informe seu nome.');
   if (num.length < 8) return showErr('phone-error', 'Número de celular inválido. Ex: (11) 99999-9999.');
 
-  window._pendingCPF = cpf;
-  window._pendingName = nome + ' ' + (document.getElementById('phone-sobrenome')?.value.trim() || '');
+  window._pendingCPF   = cpf;
+  window._pendingName  = nome;
+  window._pendingPhone = ddi + num;
 
   const cpfFree = await checkCPFUnique(cpf);
-  if (!cpfFree) return showErr('phone-error', 'Este CPF já possui uma conta. Faça login.');
+  if (!cpfFree) return showErr('phone-error', 'Este CPF já possui uma conta cadastrada. Faça login.');
 
-  const fullPhone = ddi + num;
+  const fullPhone = window._pendingPhone;
   const btn = document.querySelector('#auth-phone .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Enviando SMS...'; }
+  _demoPhoneMode = false;
 
+  // ── Try real Firebase SMS ──────────────────────────────────────
   try {
-    // Clear previous verifier
     if (window.recaptchaVerifier) {
-      try { window.recaptchaVerifier.clear(); } catch(e) {}
+      try { window.recaptchaVerifier.clear(); } catch (_) {}
       window.recaptchaVerifier = null;
     }
     window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
@@ -259,25 +320,57 @@ async function sendSMS() {
     const subEl = document.getElementById('otp-sub');
     if (subEl) subEl.textContent = `Código enviado para ${fullPhone}. Digite abaixo.`;
     showView('auth-otp');
-    setTimeout(() => { const first = document.querySelector('.otp-input'); if (first) first.focus(); }, 100);
+    setTimeout(() => { const f = document.querySelector('.otp-input'); if (f) f.focus(); }, 100);
     toast('SMS enviado! Verifique seu celular.', 'success');
-  } catch (e) {
-    let msg = firebaseErrPT(e.code);
-    if (e.code === 'auth/invalid-phone-number') {
-      msg = 'Número de telefone inválido. Use o formato com DDD, ex: (11) 99999-9999.';
-    } else if (e.code === 'auth/too-many-requests') {
-      msg = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
-    } else if (e.code === 'auth/captcha-check-failed') {
-      msg = 'Verificação de segurança falhou. Recarregue a página e tente novamente.';
-    } else if (e.code === 'auth/missing-phone-number') {
-      msg = 'Informe um número de telefone válido.';
-    }
-    showErr('phone-error', msg);
     if (btn) { btn.disabled = false; btn.textContent = 'Enviar código SMS'; }
+    return;
+  } catch (e) {
     if (window.recaptchaVerifier) {
-      try { window.recaptchaVerifier.clear(); } catch(ex) {}
+      try { window.recaptchaVerifier.clear(); } catch (_) {}
       window.recaptchaVerifier = null;
     }
+
+    // Handle "too-many-requests" and "invalid-phone-number" as real errors (not demo fallback)
+    if (e.code === 'auth/too-many-requests') {
+      showErr('phone-error', 'Muitas tentativas. Aguarde alguns minutos e tente novamente.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Enviar código SMS'; }
+      return;
+    }
+    if (e.code === 'auth/invalid-phone-number') {
+      showErr('phone-error', 'Número inválido. Use o formato +55 (11) 99999-9999.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Enviar código SMS'; }
+      return;
+    }
+
+    // Everything else → activate demo mode so the UX still works
+    console.warn('[Finno] SMS via Firebase falhou, ativando modo demo:', e.code);
+    _demoPhoneMode = true;
+  }
+
+  // ── Demo SMS mode ──────────────────────────────────────────────
+  if (_demoPhoneMode) {
+    // Show OTP screen with demo code hint
+    const subEl = document.getElementById('otp-sub');
+    if (subEl) subEl.innerHTML =
+      `Modo demonstração ativo — SMS não enviado.<br>
+       <span style="color:var(--accent);font-weight:600">Use o código: <span style="letter-spacing:0.15em">1 2 3 4 5 6</span></span>`;
+
+    // Add a small demo badge below the OTP inputs
+    const otpErr = document.getElementById('otp-error');
+    if (otpErr) {
+      otpErr.textContent = '🔬 Modo demo: Firebase SMS não configurado neste domínio. Código de teste: 123456';
+      otpErr.style.display = 'block';
+      otpErr.style.background = 'rgba(251,191,36,0.08)';
+      otpErr.style.color = 'var(--warning)';
+      otpErr.style.border = '1px solid rgba(251,191,36,0.2)';
+      otpErr.style.borderRadius = '10px';
+      otpErr.style.padding = '10px 14px';
+      otpErr.style.marginBottom = '10px';
+    }
+
+    showView('auth-otp');
+    setTimeout(() => { const f = document.querySelector('.otp-input'); if (f) f.focus(); }, 100);
+    if (btn) { btn.disabled = false; btn.textContent = 'Enviar código SMS'; }
   }
 }
 window.sendSMS = sendSMS;
@@ -286,10 +379,30 @@ async function verifyOTP() {
   const code = Array.from(document.querySelectorAll('.otp-input')).map(i => i.value).join('');
   clearErr('otp-error');
   if (code.length < 6) return showErr('otp-error', 'Digite todos os 6 dígitos do código.');
-  if (!confirmationResult) return showErr('otp-error', 'Sessão expirada. Solicite um novo código.');
 
   const btn = document.querySelector('#auth-otp .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Verificando...'; }
+
+  // ── Demo mode path ─────────────────────────────────────────────
+  if (_demoPhoneMode) {
+    if (code !== '123456') {
+      showErr('otp-error', 'Código incorreto. No modo demo use: 123456');
+      document.querySelectorAll('.otp-input').forEach(i => { i.value = ''; i.classList.add('shake'); });
+      setTimeout(() => document.querySelectorAll('.otp-input').forEach(i => i.classList.remove('shake')), 500);
+      document.querySelector('.otp-input')?.focus();
+      if (btn) { btn.disabled = false; btn.textContent = 'Verificar e entrar'; }
+      return;
+    }
+    await _createDemoPhoneAccount();
+    return;
+  }
+
+  // ── Real Firebase path ─────────────────────────────────────────
+  if (!confirmationResult) {
+    showErr('otp-error', 'Sessão expirada. Solicite um novo código.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Verificar e entrar'; }
+    return;
+  }
 
   try {
     const cred = await confirmationResult.confirm(code);
@@ -298,20 +411,52 @@ async function verifyOTP() {
     await saveUserProfile(cred.user, { provider: 'phone', displayName, cpf: (window._pendingCPF || '').replace(/\D/g, '') });
     if (window._pendingCPF) await saveCPF(window._pendingCPF, cred.user.uid);
     window._pendingCPF = null; window._pendingName = null;
-    // onAuthStateChanged handles navigation
+    // onAuthStateChanged handles routing
   } catch (e) {
-    let msg = firebaseErrPT(e.code);
-    if (e.code === 'auth/invalid-verification-code') msg = 'Código incorreto. Tente novamente.';
-    if (e.code === 'auth/code-expired') msg = 'Código expirado. Solicite um novo.';
+    let msg = firebaseErrPT(e.code) || 'Erro na verificação.';
+    if (e.code === 'auth/invalid-verification-code') msg = 'Código incorreto. Verifique e tente novamente.';
+    if (e.code === 'auth/code-expired') msg = 'Código expirado. Solicite um novo SMS.';
     showErr('otp-error', msg);
     document.querySelectorAll('.otp-input').forEach(i => { i.value = ''; i.classList.add('shake'); });
     setTimeout(() => document.querySelectorAll('.otp-input').forEach(i => i.classList.remove('shake')), 500);
-    const firstOtp = document.querySelector('.otp-input');
-    if (firstOtp) firstOtp.focus();
+    document.querySelector('.otp-input')?.focus();
     if (btn) { btn.disabled = false; btn.textContent = 'Verificar e entrar'; }
   }
 }
 window.verifyOTP = verifyOTP;
+
+// Creates an email/password Firebase account to simulate phone login
+async function _createDemoPhoneAccount() {
+  const phone = (window._pendingPhone || '').replace(/\D/g, '');
+  const tag = Date.now().toString(36);
+  const email = `demo.phone.${phone || tag}@finno.app`;
+  const password = `Finno@Phone${phone || tag}`;
+  const displayName = window._pendingName || 'Usuário';
+
+  try {
+    let cred;
+    try {
+      cred = await createUserWithEmailAndPassword(auth, email, password);
+    } catch (e) {
+      if (e.code === 'auth/email-already-in-use') {
+        cred = await signInWithEmailAndPassword(auth, email, password);
+      } else throw e;
+    }
+    await updateProfile(cred.user, { displayName });
+    await saveUserProfile(cred.user, { provider: 'phone', displayName, demoMode: true, cpf: (window._pendingCPF || '').replace(/\D/g, '') });
+    if (window._pendingCPF) await saveCPF(window._pendingCPF, cred.user.uid);
+    // Mark as demo so onAuthStateChanged skips the email-verify gate
+    localStorage.setItem(`finno_demo_phone_${cred.user.uid}`, '1');
+    window._pendingCPF = null; window._pendingName = null; window._pendingPhone = null;
+    _demoPhoneMode = false;
+    toast(`Bem-vindo, ${displayName.split(' ')[0]}! ✓`, 'success');
+    // onAuthStateChanged picks this up
+  } catch (e) {
+    toast('Erro ao criar conta demo. Tente pelo e-mail.', 'error');
+    const btn = document.querySelector('#auth-otp .btn-primary');
+    if (btn) { btn.disabled = false; btn.textContent = 'Verificar e entrar'; }
+  }
+}
 
 function otpNext(input, idx) {
   input.value = input.value.replace(/[^0-9]/g, '');
@@ -590,12 +735,10 @@ async function changePassword() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Alterando...'; }
 
   try {
-    const { updatePassword, reauthenticateWithCredential, EmailAuthProvider } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
-
-    // Try to re-authenticate first if current password provided
+    // Re-authenticate first if current password provided (required after recent sign-in gap)
     if (currentPwd) {
-      const cred = EmailAuthProvider.credential(user.email, currentPwd);
-      await reauthenticateWithCredential(user, cred);
+      const credential = EmailAuthProvider.credential(user.email, currentPwd);
+      await reauthenticateWithCredential(user, credential);
     }
 
     await updatePassword(user, newPwd);

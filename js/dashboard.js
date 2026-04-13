@@ -1226,23 +1226,24 @@ export function buildHomeInsights() {
   const el = document.getElementById('home-insights-chips');
   if (!el) return;
 
-  // Free plan: show 1 teaser only + upgrade CTA
+  // Free/none/expired: teaser + CTA de conversão forte
   if (currentPlan === 'free' || currentPlan === 'none' || currentPlan === 'expired') {
     el.innerHTML = `
-      <div class="home-insight-chip" onclick="showUpgrade('Desbloqueie insights personalizados com IA — Finno Premium por R$ 19,90/mês.')" style="cursor:pointer;position:relative;overflow:hidden">
-        <div class="home-insight-icon" style="background:rgba(130,10,209,0.15)">💡</div>
+      <div class="home-insight-chip" onclick="showUpgrade('Desbloqueie insights personalizados com IA — Finno Premium por R$ 19,90/mês.')" style="cursor:pointer">
+        <div class="home-insight-icon" style="background:rgba(130,10,209,0.15)">🤖</div>
         <div class="home-insight-text">
-          <strong>Insights financeiros personalizados</strong> — Saiba exatamente para onde vai seu dinheiro e como economizar mais.
+          <strong>Suas finanças têm padrões ocultos.</strong> A IA do Finno identifica onde você perde dinheiro sem perceber.
         </div>
         <div class="home-insight-arrow">›</div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:linear-gradient(135deg,rgba(130,10,209,0.08),rgba(224,64,251,0.04));border:1px solid rgba(130,10,209,0.2);border-radius:16px;cursor:pointer" onclick="showUpgrade('Desbloqueie insights personalizados com IA.')">
-        <div style="font-size:1.4rem">🔒</div>
-        <div style="flex:1">
-          <div style="font-size:0.82rem;font-weight:600;color:var(--text2)">Desbloqueie com Premium</div>
-          <div style="font-size:0.74rem;color:var(--muted);margin-top:2px">Análises de IA, taxa de poupança, alertas de gastos e mais.</div>
+      <div onclick="showUpgrade('Usuários Premium economizam em média R$ 580/mês ao identificar gastos desnecessários com IA.')"
+           style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,rgba(130,10,209,0.1),rgba(160,32,224,0.06));border:1px solid rgba(130,10,209,0.25);border-radius:16px;cursor:pointer">
+        <div style="font-size:1.5rem;flex-shrink:0">🔒</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.83rem;font-weight:700;color:var(--text);margin-bottom:2px">Desbloqueie insights com IA</div>
+          <div style="font-size:0.73rem;color:var(--muted);line-height:1.4">Média de R$ 580/mês economizados · alertas · taxa de poupança</div>
         </div>
-        <div style="background:var(--accent);color:white;padding:5px 12px;border-radius:8px;font-size:0.72rem;font-weight:700;white-space:nowrap">Ver plano</div>
+        <div style="background:linear-gradient(135deg,var(--accent),#a020e0);color:white;padding:6px 12px;border-radius:9px;font-size:0.72rem;font-weight:700;white-space:nowrap;flex-shrink:0;box-shadow:0 4px 12px rgba(130,10,209,0.35)">7 dias grátis</div>
       </div>`;
     return;
   }

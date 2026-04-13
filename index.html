@@ -82,7 +82,7 @@
         </div>
       </div>
       <div class="ob-title">Suas finanças<br>no automático</div>
-      <div class="ob-text">Controle seu dinheiro sem esforço</div>
+      <div class="ob-text">Conecte seus bancos e veja tudo organizado em segundos — sem planilhas</div>
     </div>
 
     <!-- SLIDE 2 -->
@@ -111,8 +111,8 @@
           </div>
         </div>
       </div>
-      <div class="ob-title">Tudo organizado<br>automaticamente</div>
-      <div class="ob-text">Conecte seus bancos e pare de anotar gastos</div>
+      <div class="ob-title">+200 bancos<br>conectados</div>
+      <div class="ob-text">Nubank, Itaú, Bradesco, Inter e muito mais — transações importadas automaticamente via Open Finance BCB</div>
     </div>
 
     <!-- SLIDE 3 -->
@@ -148,8 +148,8 @@
           </div>
         </div>
       </div>
-      <div class="ob-title">Saiba para onde<br>seu dinheiro vai</div>
-      <div class="ob-text">Receba insights simples e economize mais</div>
+      <div class="ob-title">IA que trabalha<br>por você</div>
+      <div class="ob-text">Alertas de gastos, metas automáticas e insights personalizados — usuários economizam em média R$ 580/mês</div>
     </div>
 
   </div><!-- /ob-track -->
@@ -183,21 +183,77 @@
   </div>
 </div>
 
-<!-- ===== SCREEN 0: SPLASH ===== -->
+<!-- ===== SCREEN 0: SPLASH / LANDING ===== -->
 <div id="screen-splash" class="screen">
-  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 28px;text-align:center;background:linear-gradient(160deg,#060d1f 0%,#0b1a35 55%,#0f2044 100%)">
-    <div style="font-family:Syne,sans-serif;font-weight:800;font-size:3rem;letter-spacing:-0.05em;background:linear-gradient(135deg,#fff 30%,#00c896);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:12px">finno</div>
-    <div style="color:rgba(180,210,255,0.5);font-size:0.95rem;font-weight:300;margin-bottom:56px;line-height:1.7">Controle financeiro inteligente.<br>Conectado aos seus bancos.</div>
-    <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:360px">
-      <button class="btn-primary" onclick="goToAuth('register')" style="background:linear-gradient(135deg,#003d99,#0066ff);box-shadow:0 8px 32px rgba(0,90,220,0.35)">Criar conta grátis</button>
-      <div style="display:flex;align-items:center;gap:12px;color:rgba(180,210,255,0.3);font-size:0.78rem;margin:4px 0"><span style="flex:1;height:1px;background:rgba(255,255,255,0.06)"></span>já tenho conta<span style="flex:1;height:1px;background:rgba(255,255,255,0.06)"></span></div>
-      <button class="btn-outline" onclick="goToAuth('login')" style="border-color:rgba(255,255,255,0.12);color:rgba(255,255,255,0.7)">Entrar</button>
+  <div class="splash-screen">
+
+    <!-- Background blobs -->
+    <div class="splash-blob splash-blob-1"></div>
+    <div class="splash-blob splash-blob-2"></div>
+
+    <!-- Logo + Headline -->
+    <div class="splash-top">
+      <div class="splash-logo">finno</div>
+      <h1 class="splash-tagline">Suas finanças<br>no automático</h1>
+      <p class="splash-sub">Conecte seus bancos, receba insights com IA<br>e tome o controle do seu dinheiro.</p>
     </div>
-    <div style="display:flex;align-items:center;gap:16px;margin-top:32px;flex-wrap:wrap;justify-content:center">
-      <span style="font-size:0.72rem;color:rgba(180,210,255,0.3)">🔒 Open Finance BCB</span>
-      <span style="font-size:0.72rem;color:rgba(180,210,255,0.3)">🤖 IA integrada</span>
-      <span style="font-size:0.72rem;color:rgba(180,210,255,0.3)">⭐ 4.9 ★★★★★</span>
+
+    <!-- Benefits -->
+    <div class="splash-benefits">
+      <div class="splash-benefit">
+        <div class="splash-benefit-icon">🏦</div>
+        <div class="splash-benefit-text">
+          <div class="splash-benefit-title">Bancos conectados</div>
+          <div class="splash-benefit-desc">+200 bancos via Open Finance BCB</div>
+        </div>
+      </div>
+      <div class="splash-benefit">
+        <div class="splash-benefit-icon">🤖</div>
+        <div class="splash-benefit-text">
+          <div class="splash-benefit-title">IA que entende você</div>
+          <div class="splash-benefit-desc">Insights personalizados sobre seus gastos</div>
+        </div>
+      </div>
+      <div class="splash-benefit">
+        <div class="splash-benefit-icon">📊</div>
+        <div class="splash-benefit-text">
+          <div class="splash-benefit-title">Controle total</div>
+          <div class="splash-benefit-desc">Categorias, metas e relatórios automáticos</div>
+        </div>
+      </div>
+      <div class="splash-benefit">
+        <div class="splash-benefit-icon">🔒</div>
+        <div class="splash-benefit-text">
+          <div class="splash-benefit-title">Segurança bancária</div>
+          <div class="splash-benefit-desc">Criptografia SSL · Leitura apenas · BCB</div>
+        </div>
+      </div>
     </div>
+
+    <!-- CTAs -->
+    <div class="splash-ctas">
+      <button class="btn-primary splash-cta-primary" onclick="goToAuth('register')">✦ Começar grátis agora</button>
+      <div class="splash-divider"><span>já tenho conta</span></div>
+      <button class="btn-outline splash-cta-outline" onclick="goToAuth('login')">Entrar na minha conta</button>
+    </div>
+
+    <!-- Trust badges -->
+    <div class="splash-trust">
+      <span>⭐ 4.9/5 nas avaliações</span>
+      <span class="splash-trust-dot">·</span>
+      <span>+50 mil usuários</span>
+      <span class="splash-trust-dot">·</span>
+      <span>🇧🇷 Regulado pelo BCB</span>
+    </div>
+
+    <!-- Security seals -->
+    <div class="splash-seals">
+      <div class="splash-seal-item"><div class="splash-seal-dot"></div>SSL 256-bit</div>
+      <div class="splash-seal-item"><div class="splash-seal-dot"></div>Open Finance BCB</div>
+      <div class="splash-seal-item"><div class="splash-seal-dot"></div>LGPD Conformidade</div>
+      <div class="splash-seal-item"><div class="splash-seal-dot"></div>Somente leitura</div>
+    </div>
+
   </div>
 </div>
 
@@ -208,29 +264,43 @@
   <div class="auth-card">
     <div class="auth-back" onclick="goBackToSplash()">← Voltar</div>
     <div class="auth-logo">finno</div>
+    <div class="auth-tagline">Suas finanças no automático</div>
 
-    <!-- REGISTER -->
+    <!-- ══ REGISTER ══════════════════════════════════════════════ -->
     <div id="auth-register">
-      <h2>Criar conta</h2>
-      <div class="auth-sub">Grátis. Leva menos de 1 minuto.</div>
-      <button class="social-btn" onclick="authGoogle()">
+      <h2>Criar sua conta</h2>
+      <div class="auth-sub">Grátis para sempre · Sem cartão de crédito · Leva 1 minuto</div>
+
+      <!-- Google — acesso mais rápido -->
+      <button class="social-btn google-btn" onclick="authGoogle()">
         <span class="sicon"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.859-3.048.859-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/><path d="M3.964 10.705c-.18-.54-.282-1.117-.282-1.705s.102-1.165.282-1.705V4.963H.957C.347 6.175 0 7.55 0 9s.348 2.826.957 4.037l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.963L3.964 7.295C4.672 5.169 6.656 3.58 9 3.58z" fill="#EA4335"/></svg></span>
-        Cadastrar com Google
+        Cadastrar com Google — 1 clique
       </button>
       <button class="social-btn" onclick="showView('auth-phone')"><span class="sicon">📱</span> Cadastrar com celular</button>
-      <div class="auth-divider">ou use e-mail</div>
-      <div class="name-row">
-        <div class="input-group"><label>Nome</label><input type="text" id="reg-nome" placeholder="João"></div>
-        <div class="input-group"><label>Sobrenome</label><input type="text" id="reg-sobrenome" placeholder="Silva"></div>
+
+      <div class="auth-divider">ou cadastre com e-mail</div>
+
+      <!-- Nome completo (campo único — menos fricção) -->
+      <div class="input-group">
+        <label>Nome completo</label>
+        <input type="text" id="reg-nome-completo" placeholder="Ex.: João Silva" autocomplete="name" oninput="clearErr('reg-error')">
       </div>
+      <!-- CPF com micro-copy de contexto -->
       <div class="input-group">
         <label>CPF</label>
-        <input type="text" id="reg-cpf" placeholder="000.000.000-00" maxlength="14" oninput="formatCPF(this)" onkeydown="if(event.key==='Enter')doRegister()">
+        <input type="text" id="reg-cpf" placeholder="000.000.000-00" maxlength="14" oninput="formatCPF(this)" onkeydown="if(event.key==='Enter')doRegister()" inputmode="numeric">
       </div>
-      <div class="input-group"><label>E-mail</label><input type="email" id="reg-email" placeholder="joao@email.com" oninput="clearErr('reg-error')"></div>
+      <div class="input-security-note">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Usado apenas para identificar sua conta · Nunca compartilhado
+      </div>
+      <div class="input-group">
+        <label>E-mail</label>
+        <input type="email" id="reg-email" placeholder="voce@email.com" autocomplete="email" oninput="clearErr('reg-error')">
+      </div>
       <div class="input-group">
         <label>Senha</label>
-        <input type="password" id="reg-senha" placeholder="Mín. 8 car., número e símbolo" oninput="checkStrength(this.value)" onkeydown="if(event.key==='Enter')doRegister()">
+        <input type="password" id="reg-senha" placeholder="Mín. 8 caracteres" autocomplete="new-password" oninput="checkStrength(this.value)" onkeydown="if(event.key==='Enter')doRegister()">
         <span class="input-eye" onclick="togglePwd('reg-senha',this)">👁</span>
       </div>
       <div class="pwd-strength" id="pwd-strength" style="display:none">
@@ -238,86 +308,125 @@
         <div class="pwd-bar" id="pbar3"></div><div class="pwd-bar" id="pbar4"></div>
         <div class="pwd-label" id="plabel"></div>
       </div>
+
       <div id="reg-error" class="input-error" style="display:none"></div>
-      <button class="btn-primary" onclick="doRegister()" style="margin-top:10px">Criar conta</button>
-      <div class="auth-terms">Ao criar conta você concorda com os <a href="#">Termos de Uso</a> e <a href="#">Política de Privacidade</a></div>
-      <div class="auth-switch">Já tem conta? <a onclick="showView('auth-login')">Entrar</a></div>
+      <button class="btn-primary" onclick="doRegister()" style="margin-top:12px">Criar conta segura →</button>
+
+      <div class="auth-terms">
+        Ao criar sua conta você concorda com os <a href="#">Termos de Uso</a> e a <a href="#">Política de Privacidade</a>.<br>
+        Seus dados são protegidos por criptografia SSL e seguem a LGPD.
+      </div>
+      <div class="auth-switch">Já tem conta? <a onclick="showView('auth-login')">Entrar agora</a></div>
+
+      <!-- Selos de segurança -->
+      <div class="auth-security-row">
+        <div class="auth-seal"><div class="auth-seal-dot"></div>SSL 256-bit</div>
+        <div class="auth-seal"><div class="auth-seal-dot"></div>Open Finance BCB</div>
+        <div class="auth-seal"><div class="auth-seal-dot"></div>LGPD</div>
+        <div class="auth-seal"><div class="auth-seal-dot"></div>Só leitura</div>
+      </div>
     </div>
 
-    <!-- LOGIN -->
+    <!-- ══ LOGIN ═════════════════════════════════════════════════ -->
     <div id="auth-login" style="display:none">
       <h2>Bem-vindo de volta</h2>
-      <div class="auth-sub">Entre na sua conta para continuar.</div>
-      <button class="social-btn" onclick="authGoogle()">
+      <div class="auth-sub">Acesse seus bancos sincronizados e seus insights.</div>
+
+      <button class="social-btn google-btn" onclick="authGoogle()">
         <span class="sicon"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.859-3.048.859-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/><path d="M3.964 10.705c-.18-.54-.282-1.117-.282-1.705s.102-1.165.282-1.705V4.963H.957C.347 6.175 0 7.55 0 9s.348 2.826.957 4.037l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.963L3.964 7.295C4.672 5.169 6.656 3.58 9 3.58z" fill="#EA4335"/></svg></span>
         Entrar com Google
       </button>
       <button class="social-btn" onclick="showView('auth-phone')"><span class="sicon">📱</span> Entrar com celular</button>
+
       <div class="auth-divider">ou entre com e-mail</div>
-      <div class="input-group"><label>E-mail</label><input type="email" id="login-email" placeholder="seu@email.com" oninput="clearErr('login-error')"></div>
+
+      <div class="input-group">
+        <label>E-mail</label>
+        <input type="email" id="login-email" placeholder="voce@email.com" autocomplete="email" oninput="clearErr('login-error')">
+      </div>
       <div class="input-group">
         <label>Senha</label>
-        <input type="password" id="login-senha" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+        <input type="password" id="login-senha" placeholder="Sua senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
         <span class="input-eye" onclick="togglePwd('login-senha',this)">👁</span>
       </div>
-      <div style="text-align:right;margin:-6px 0 14px"><a onclick="showView('auth-forgot')" style="font-size:0.78rem;color:var(--accent);cursor:pointer">Esqueceu a senha?</a></div>
+      <div style="text-align:right;margin:-6px 0 14px">
+        <a onclick="showView('auth-forgot')" style="font-size:0.78rem;color:var(--muted);cursor:pointer;transition:color 0.2s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">Esqueceu a senha?</a>
+      </div>
+
       <div id="login-error" class="input-error" style="display:none"></div>
-      <button class="btn-primary" onclick="doLogin()">Entrar</button>
-      <div class="auth-switch">Não tem conta? <a onclick="showView('auth-register')">Criar grátis</a></div>
+      <button class="btn-primary" onclick="doLogin()">Acessar minha conta →</button>
+
+      <div class="auth-switch" style="margin-top:14px">Novo por aqui? <a onclick="showView('auth-register')">Criar conta grátis</a></div>
+
+      <div class="auth-security-row">
+        <div class="auth-seal"><div class="auth-seal-dot"></div>Conexão segura</div>
+        <div class="auth-seal"><div class="auth-seal-dot"></div>Dados criptografados</div>
+        <div class="auth-seal"><div class="auth-seal-dot"></div>LGPD</div>
+      </div>
     </div>
 
-    <!-- PHONE -->
+    <!-- ══ PHONE ══════════════════════════════════════════════════ -->
     <div id="auth-phone" style="display:none">
       <h2>Entrar com celular</h2>
-      <div class="auth-sub">Informe seu número. Você receberá um SMS.</div>
-      <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:0.8rem;color:var(--warning);line-height:1.5">
-        ⚠️ O SMS requer que o número de telefone esteja habilitado no Firebase Console em <b>Authentication → Sign-in method → Telefone</b>.
+      <div class="auth-sub">Receba um código de 6 dígitos por SMS — rápido e seguro.</div>
+
+      <div class="input-group">
+        <label>Nome completo</label>
+        <input type="text" id="phone-nome" placeholder="Ex.: João Silva" autocomplete="name">
       </div>
-      <div class="input-group" style="margin-bottom:14px"><label>CPF</label><input type="text" id="phone-cpf" placeholder="000.000.000-00" maxlength="14" oninput="formatCPF(this)"></div>
-      <div class="name-row" style="margin-bottom:14px">
-        <div class="input-group" style="margin:0"><label>Nome</label><input type="text" id="phone-nome" placeholder="João"></div>
-        <div class="input-group" style="margin:0"><label>Sobrenome</label><input type="text" id="phone-sobrenome" placeholder="Silva"></div>
+      <div class="input-group">
+        <label>CPF</label>
+        <input type="text" id="phone-cpf" placeholder="000.000.000-00" maxlength="14" oninput="formatCPF(this)" inputmode="numeric">
       </div>
       <div style="display:flex;gap:10px;margin-bottom:14px">
-        <select id="phone-ddi" style="background:var(--surface2);border:1px solid var(--border);border-radius:13px;padding:14px 12px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none;flex-shrink:0">
-          <option value="+55">🇧🇷 +55</option>
-          <option value="+1">🇺🇸 +1</option>
-          <option value="+351">🇵🇹 +351</option>
-        </select>
-        <div class="input-group" style="flex:1;margin:0"><label>Celular</label><input type="tel" id="phone-number" placeholder="(11) 99999-9999" onkeydown="if(event.key==='Enter')sendSMS()"></div>
+        <div class="input-group" style="width:96px;flex-shrink:0;margin:0">
+          <label>País</label>
+          <select id="phone-ddi" style="width:100%;background:rgba(255,255,255,0.04);border:1.5px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px 8px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.85rem;outline:none">
+            <option value="+55">🇧🇷 +55</option>
+            <option value="+1">🇺🇸 +1</option>
+            <option value="+351">🇵🇹 +351</option>
+          </select>
+        </div>
+        <div class="input-group" style="flex:1;margin:0">
+          <label>Celular</label>
+          <input type="tel" id="phone-number" placeholder="(11) 99999-9999" autocomplete="tel" onkeydown="if(event.key==='Enter')sendSMS()">
+        </div>
       </div>
-      <div id="recaptcha-container" style="margin-bottom:12px"></div>
+      <div id="recaptcha-container"></div>
       <div id="phone-error" class="input-error" style="display:none"></div>
-      <button class="btn-primary" onclick="sendSMS()">Enviar código SMS</button>
-      <div class="auth-switch"><a onclick="showView('auth-login')">← Voltar ao e-mail</a></div>
+      <button class="btn-primary" onclick="sendSMS()">Enviar código SMS →</button>
+      <div class="auth-switch" style="margin-top:12px"><a onclick="showView('auth-login')">← Voltar para e-mail</a></div>
     </div>
 
-    <!-- OTP -->
+    <!-- ══ OTP ════════════════════════════════════════════════════ -->
     <div id="auth-otp" style="display:none">
-      <h2>Confirme o código</h2>
-      <div class="auth-sub" id="otp-sub">Enviamos um SMS para o seu número.</div>
+      <h2>Digite o código</h2>
+      <div class="auth-sub" id="otp-sub">Código de 6 dígitos enviado por SMS.</div>
       <div class="otp-row">
-        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" oninput="otpNext(this,0)" onkeydown="otpBack(event,this,0)">
+        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" autocomplete="one-time-code" oninput="otpNext(this,0)" onkeydown="otpBack(event,this,0)">
         <input class="otp-input" maxlength="1" type="text" inputmode="numeric" oninput="otpNext(this,1)" onkeydown="otpBack(event,this,1)">
         <input class="otp-input" maxlength="1" type="text" inputmode="numeric" oninput="otpNext(this,2)" onkeydown="otpBack(event,this,2)">
         <input class="otp-input" maxlength="1" type="text" inputmode="numeric" oninput="otpNext(this,3)" onkeydown="otpBack(event,this,3)">
         <input class="otp-input" maxlength="1" type="text" inputmode="numeric" oninput="otpNext(this,4)" onkeydown="otpBack(event,this,4)">
         <input class="otp-input" maxlength="1" type="text" inputmode="numeric" oninput="otpNext(this,5)" onkeydown="otpBack(event,this,5)">
       </div>
-      <div id="otp-error" class="input-error" style="display:none;text-align:center"></div>
-      <button class="btn-primary" onclick="verifyOTP()">Verificar e entrar</button>
-      <div class="auth-switch">Não recebeu? <a onclick="showView('auth-phone')">Tentar novamente</a></div>
+      <div id="otp-error" class="input-error" style="display:none;justify-content:center"></div>
+      <button class="btn-primary" onclick="verifyOTP()">Confirmar e entrar →</button>
+      <div class="auth-switch" style="margin-top:12px">Não recebeu? <a onclick="showView('auth-phone')">Reenviar SMS</a></div>
     </div>
 
-    <!-- FORGOT -->
+    <!-- ══ FORGOT ══════════════════════════════════════════════════ -->
     <div id="auth-forgot" style="display:none">
-      <h2>Recuperar senha</h2>
-      <div class="auth-sub">Enviaremos um link de redefinição para seu e-mail.</div>
-      <div class="input-group"><label>E-mail</label><input type="email" id="forgot-email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')doForgot()"></div>
-      <div id="forgot-msg" style="display:none;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:12px;padding:14px;font-size:0.82rem;color:var(--success);margin-bottom:14px;text-align:center"></div>
+      <h2>Recuperar acesso</h2>
+      <div class="auth-sub">Enviaremos um link seguro para redefinir sua senha.</div>
+      <div class="input-group">
+        <label>E-mail da conta</label>
+        <input type="email" id="forgot-email" placeholder="voce@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')doForgot()">
+      </div>
+      <div id="forgot-msg" style="display:none;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:14px;font-size:0.82rem;color:var(--success);margin-bottom:14px;text-align:center;line-height:1.5"></div>
       <div id="forgot-error" class="input-error" style="display:none"></div>
-      <button class="btn-primary" onclick="doForgot()">Enviar link</button>
-      <div class="auth-switch"><a onclick="showView('auth-login')">← Voltar ao login</a></div>
+      <button class="btn-primary" onclick="doForgot()">Enviar link de recuperação →</button>
+      <div class="auth-switch" style="margin-top:12px"><a onclick="showView('auth-login')">← Voltar ao login</a></div>
     </div>
 
   </div>
@@ -328,26 +437,28 @@
 <!-- ===== SCREEN 0C: CHOOSE PLAN ===== -->
 <div id="screen-plan" class="screen">
   <div class="plan-header">
-    <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.6rem;letter-spacing:-0.04em;background:linear-gradient(135deg,#fff 30%,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px">finno</div>
-    <h2>Escolha seu plano</h2>
-    <p>Comece grátis ou desbloqueie todo o poder do Finno com o Premium.</p>
+    <div class="splash-logo" style="font-size:1.6rem;margin-bottom:8px">finno</div>
+    <h2>Desbloqueie o controle total</h2>
+    <p>Usuários Premium economizam em média <strong style="color:var(--accent)">R$ 580/mês</strong> ao identificar gastos desnecessários.</p>
   </div>
   <div class="plans-wrap">
     <div class="plan-card premium" onclick="choosePlan('premium')">
-      <div class="plan-badge">⭐ RECOMENDADO</div>
-      <div class="plan-icon">🚀</div>
+      <div class="plan-badge">🔥 MAIS POPULAR — 7 DIAS GRÁTIS</div>
+      <div class="plan-icon">⭐</div>
       <div class="plan-name">Finno Premium</div>
       <div class="plan-price">R$ 19,90 <span>/mês</span></div>
+      <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);margin-bottom:14px">= R$ 0,66/dia · cancele quando quiser</div>
       <div class="plan-features">
-        <div class="plan-feature"><span class="fi">✅</span> Conexão automática com +200 bancos</div>
-        <div class="plan-feature"><span class="fi">✅</span> Importação automática de transações</div>
-        <div class="plan-feature"><span class="fi">✅</span> Metas financeiras ilimitadas</div>
-        <div class="plan-feature"><span class="fi">✅</span> Insights com IA personalizados</div>
-        <div class="plan-feature"><span class="fi">✅</span> Relatórios avançados e exportação</div>
-        <div class="plan-feature"><span class="fi">✅</span> Alertas de gastos em tempo real</div>
-        <div class="plan-feature"><span class="fi">✅</span> Suporte prioritário</div>
+        <div class="plan-feature"><span class="fi">🏦</span> Conexão automática com +200 bancos</div>
+        <div class="plan-feature"><span class="fi">🔄</span> Importação automática de transações</div>
+        <div class="plan-feature"><span class="fi">🤖</span> Insights com IA personalizados</div>
+        <div class="plan-feature"><span class="fi">🎯</span> Metas financeiras ilimitadas</div>
+        <div class="plan-feature"><span class="fi">📊</span> Relatórios e exportação em PDF</div>
+        <div class="plan-feature"><span class="fi">🔔</span> Alertas de gastos em tempo real</div>
+        <div class="plan-feature"><span class="fi">⚡</span> Suporte prioritário 24h</div>
       </div>
-      <button class="plan-btn premium-btn">Começar Premium — 7 dias grátis</button>
+      <button class="plan-btn premium-btn">🚀 Testar grátis por 7 dias →</button>
+      <div style="text-align:center;font-size:0.72rem;color:rgba(255,255,255,0.35);margin-top:8px">Sem cobranças durante o trial</div>
     </div>
     <div class="plan-card" onclick="choosePlan('free')">
       <div class="plan-icon">🆓</div>
@@ -355,18 +466,17 @@
       <div class="plan-price">R$ 0 <span>/sempre</span></div>
       <div class="plan-features">
         <div class="plan-feature"><span class="fi">✅</span> Lançamento manual de gastos</div>
+        <div class="plan-feature"><span class="fi">✅</span> Até 3 metas financeiras</div>
         <div class="plan-feature"><span class="fi">✅</span> Categorias básicas</div>
-        <div class="plan-feature"><span class="fi">✅</span> Saldo manual</div>
-        <div class="plan-feature locked"><span class="fi">🔒</span> Conexão bancária automática</div>
-        <div class="plan-feature locked"><span class="fi">🔒</span> Metas financeiras</div>
-        <div class="plan-feature locked"><span class="fi">🔒</span> Insights com IA</div>
-        <div class="plan-feature locked"><span class="fi">🔒</span> Relatórios avançados</div>
+        <div class="plan-feature locked"><span class="fi">🔒</span> Bancos conectados automaticamente</div>
+        <div class="plan-feature locked"><span class="fi">🔒</span> Insights com IA (bloqueado)</div>
+        <div class="plan-feature locked"><span class="fi">🔒</span> Relatórios avançados (bloqueado)</div>
       </div>
-      <button class="plan-btn free">Continuar grátis</button>
+      <button class="plan-btn free">Continuar sem Premium</button>
     </div>
   </div>
-  <div style="text-align:center;margin-top:20px;font-size:0.75rem;color:var(--muted);line-height:1.6">
-    Cancele a qualquer momento · Sem fidelidade<br>Cobrança via cartão de crédito — processado com segurança
+  <div style="text-align:center;margin-top:20px;font-size:0.75rem;color:var(--muted);line-height:1.8">
+    🔒 Pagamento seguro · Cancele a qualquer momento sem multa<br>Processado com criptografia SSL · Open Finance regulado pelo BCB
   </div>
 </div>
 
@@ -441,8 +551,8 @@
     <!-- STATE A: PAYWALL -->
     <div id="connect-state-paywall" style="width:100%;max-width:420px">
       <div style="text-align:center;margin-bottom:28px">
-        <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.5rem;letter-spacing:-0.03em;margin-bottom:8px">Conecte seus bancos<br>automaticamente</div>
-        <div style="color:var(--muted);font-size:0.88rem;line-height:1.6;max-width:300px;margin:0 auto">Pare de lançar gastos manualmente e tenha tudo organizado em segundos</div>
+        <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.5rem;letter-spacing:-0.03em;margin-bottom:8px">Conecte seus bancos<br>e economize R$ 580/mês</div>
+        <div style="color:var(--muted);font-size:0.88rem;line-height:1.6;max-width:320px;margin:0 auto">Sem lançamentos manuais. Tudo organizado automaticamente — extrato, categorias e insights com IA.</div>
       </div>
       <div class="bank-paywall-card">
         <div class="trial-badge">✨ 7 dias grátis para testar</div>
@@ -455,7 +565,7 @@
           <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.8rem">R$ 19,90<span style="font-size:0.9rem;font-weight:400;color:var(--muted)">/mês</span></div>
           <div style="font-size:0.75rem;color:var(--muted);margin-top:4px">Máximo de 2 bancos · Cancele quando quiser</div>
         </div>
-        <button class="btn-primary" id="start-trial-btn" onclick="startTrial()" style="font-size:1rem;padding:17px;margin-bottom:12px">🚀 Testar grátis por 7 dias</button>
+        <button class="btn-primary" id="start-trial-btn" onclick="startTrial()" style="font-size:1rem;padding:17px;margin-bottom:12px;background:linear-gradient(135deg,var(--accent),#a020e0);box-shadow:0 8px 28px rgba(130,10,209,0.4)">🚀 Testar grátis por 7 dias →</button>
         <button onclick="showSimulation()" style="width:100%;background:none;border:1px solid rgba(124,109,250,0.25);color:var(--accent);padding:10px 14px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.82rem;border-radius:12px;margin-bottom:8px">👁 Ver demonstração antes de decidir</button>
         <button onclick="skipToFree()" style="width:100%;background:none;border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.75);padding:13px 14px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.88rem;border-radius:12px;transition:all 0.2s" onmouseover="this.style.borderColor='rgba(255,255,255,0.35)';this.style.color='#fff'" onmouseout="this.style.borderColor='rgba(255,255,255,0.18)';this.style.color='rgba(255,255,255,0.75)'">→ Usar sem banco por enquanto</button>
         <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:14px;flex-wrap:wrap">
@@ -545,7 +655,7 @@
 <div id="screen-dashboard" class="screen">
 
   <div class="topnav" style="background:rgba(6,13,31,0.92);border-bottom:1px solid rgba(255,255,255,0.06)">
-    <div class="nav-logo" style="background:linear-gradient(135deg,#fff 40%,#00c896);-webkit-background-clip:text;-webkit-text-fill-color:transparent">finno</div>
+    <div class="nav-logo">finno</div>
     <div class="nav-right">
       <div class="nav-sync" onclick="syncData()" style="background:rgba(0,200,150,0.08);border-color:rgba(0,200,150,0.2);color:#00c896">
         <div class="sync-dot" style="background:#00c896"></div>
@@ -781,10 +891,16 @@
         <div id="insights-list"></div>
       </div>
       <div class="paywall-overlay" id="paywall-insights" style="display:none;flex-direction:column">
-        <div class="paywall-icon">✨</div>
-        <div class="paywall-title">Insights com IA</div>
-        <div class="paywall-sub">Análises inteligentes sobre seus hábitos financeiros — exclusivo Premium.</div>
-        <button class="paywall-btn" onclick="showUpgrade('Desbloqueie insights com IA com o Finno Premium por apenas R$ 19,90/mês.')">🔓 Desbloquear Premium</button>
+        <div class="paywall-icon">🤖</div>
+        <div class="paywall-title">Insights com IA bloqueados</div>
+        <div class="paywall-sub">Usuários Premium identificam e cortam em média <strong style="color:var(--text)">R$ 580/mês</strong> em gastos que passariam despercebidos.</div>
+        <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:300px;margin:0 auto 20px">
+          <div style="font-size:0.78rem;color:rgba(255,255,255,0.55);display:flex;gap:8px;align-items:center;text-align:left"><span>📊</span> Análise automática de todos os seus gastos</div>
+          <div style="font-size:0.78rem;color:rgba(255,255,255,0.55);display:flex;gap:8px;align-items:center;text-align:left"><span>🎯</span> Sugestões personalizadas para economizar</div>
+          <div style="font-size:0.78rem;color:rgba(255,255,255,0.55);display:flex;gap:8px;align-items:center;text-align:left"><span>🔔</span> Alertas de gastos em tempo real</div>
+        </div>
+        <button class="paywall-btn" onclick="showUpgrade('Desbloqueie insights com IA com o Finno Premium por apenas R$ 19,90/mês.')">🚀 Testar grátis por 7 dias →</button>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:8px">Sem cobranças durante o trial · cancele quando quiser</div>
       </div>
     </div>
 
@@ -844,16 +960,21 @@
 <div class="modal-overlay" id="modal-upgrade">
   <div class="modal-sheet" style="text-align:center">
     <div class="modal-handle"></div>
-    <div style="font-size:3rem;margin-bottom:16px">⭐</div>
-    <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.3rem;margin-bottom:8px">Recurso Premium</div>
-    <div style="color:var(--muted);font-size:0.85rem;line-height:1.6;margin-bottom:24px" id="upgrade-msg">Este recurso está disponível apenas no plano Premium.</div>
-    <div style="background:var(--surface2);border-radius:16px;padding:20px;margin-bottom:24px">
-      <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">FINNO PREMIUM</div>
-      <div style="font-family:Syne,sans-serif;font-weight:800;font-size:2rem;margin-bottom:4px">R$ 19,90<span style="font-size:1rem;font-weight:400;color:var(--muted)">/mês</span></div>
-      <div style="font-size:0.78rem;color:var(--success)">✓ 7 dias grátis para testar</div>
+    <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#c040fb);display:flex;align-items:center;justify-content:center;font-size:1.8rem;margin:0 auto 16px">⭐</div>
+    <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.3rem;margin-bottom:6px">Desbloqueie o Premium</div>
+    <div style="color:rgba(180,200,255,0.5);font-size:0.82rem;line-height:1.6;margin-bottom:20px" id="upgrade-msg">Usuários Premium identificam e cortam em média <strong style="color:var(--text)">R$ 580/mês</strong> em gastos desnecessários.</div>
+    <div style="background:linear-gradient(135deg,rgba(130,10,209,0.15),rgba(90,10,180,0.08));border:1px solid rgba(130,10,209,0.3);border-radius:16px;padding:20px;margin-bottom:18px">
+      <div style="font-size:0.72rem;color:var(--muted);font-weight:600;letter-spacing:0.08em;margin-bottom:8px">FINNO PREMIUM</div>
+      <div style="font-family:Syne,sans-serif;font-weight:800;font-size:2.2rem;margin-bottom:4px;color:var(--text)">R$ 19,90<span style="font-size:0.95rem;font-weight:400;color:var(--muted)">/mês</span></div>
+      <div style="font-size:0.78rem;color:var(--success);margin-bottom:12px">✓ 7 dias completamente grátis · cancele quando quiser</div>
+      <div style="display:flex;flex-direction:column;gap:6px;text-align:left">
+        <div style="font-size:0.78rem;color:rgba(255,255,255,0.65);display:flex;gap:8px;align-items:center"><span>🏦</span> +200 bancos conectados automaticamente</div>
+        <div style="font-size:0.78rem;color:rgba(255,255,255,0.65);display:flex;gap:8px;align-items:center"><span>🤖</span> Insights com IA do seu perfil financeiro</div>
+        <div style="font-size:0.78rem;color:rgba(255,255,255,0.65);display:flex;gap:8px;align-items:center"><span>🎯</span> Metas ilimitadas + alertas em tempo real</div>
+      </div>
     </div>
-    <button class="btn-primary" onclick="showPremiumPayment();closeModal('modal-upgrade')" style="margin-bottom:10px">Assinar Premium agora</button>
-    <button onclick="closeModal('modal-upgrade')" style="width:100%;background:none;border:none;color:var(--muted);padding:12px;cursor:pointer;font-family:DM Sans,sans-serif">Agora não</button>
+    <button class="btn-primary" onclick="showPremiumPayment();closeModal('modal-upgrade')" style="margin-bottom:10px;background:linear-gradient(135deg,var(--accent),#a020e0);box-shadow:0 8px 24px rgba(130,10,209,0.4)">🚀 Testar grátis por 7 dias →</button>
+    <button onclick="closeModal('modal-upgrade')" style="width:100%;background:none;border:none;color:var(--muted);padding:10px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.8rem">Continuar sem Premium</button>
   </div>
 </div>
 

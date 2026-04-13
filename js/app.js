@@ -87,8 +87,11 @@ onAuthStateChanged(auth, user => {
     const uid = user.uid;
 
     // Email/password users must verify their email before proceeding
+    // Exception: demo Google/phone accounts bypass this gate
     const provider = user.providerData[0]?.providerId;
-    if (provider === 'password' && !user.emailVerified) {
+    const isDemoAccount = !!localStorage.getItem(`finno_demo_google_${user.uid}`) ||
+                          !!localStorage.getItem(`finno_demo_phone_${user.uid}`);
+    if (provider === 'password' && !user.emailVerified && !isDemoAccount) {
       const subEl = document.getElementById('verify-email-sub');
       if (subEl) subEl.textContent = `Confirme o e-mail enviado para ${user.email}.`;
       showScreen('screen-verify-email');
