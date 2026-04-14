@@ -590,28 +590,26 @@ body::before {
 .nav-item.active::before { width: 20px; }
 .nav-item .nav-icon { font-size: 1.15rem; }
 
-/* ── FAB CENTRAL NA BOTTOM NAV ──────────────────────────────── */
-.nav-fab-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  transition: visibility 0.15s;
-}
-.nav-fab {
-  width: 54px; height: 54px;
+/* ── FAB DE PAINEL (Início e Metas — canto inferior direito) ─── */
+.panel-fab {
+  position: fixed;
+  bottom: 88px; right: 20px; /* acima da bottom nav */
+  width: 52px; height: 52px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent), var(--accent2));
   border: none;
-  color: white; font-size: 1.6rem; line-height: 1;
+  color: white; font-size: 1.5rem; line-height: 1;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 6px 24px rgba(130,10,209,0.5);
-  transform: translateY(-12px); /* eleva acima da barra */
   transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+  z-index: 50;
 }
-.nav-fab:hover { box-shadow: 0 10px 32px rgba(130,10,209,0.65); transform: translateY(-14px) scale(1.06); }
-.nav-fab:active { transform: translateY(-10px) scale(0.96); }
+.panel-fab:hover { box-shadow: 0 10px 32px rgba(130,10,209,0.65); transform: scale(1.08) translateY(-2px); }
+.panel-fab:active { transform: scale(0.96); }
+/* O botão fica visível apenas quando o painel pai (tab-panel) está ativo */
+.tab-panel .panel-fab { display: none; }
+.tab-panel.active .panel-fab { display: flex; }
 
 /* ── TAB PANELS ─────────────────────────────────────────────── */
 .tab-panel { display: none; }

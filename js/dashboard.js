@@ -115,8 +115,6 @@ window.runLoadingSequence = runLoadingSequence;
 // ── Build dashboard ───────────────────────────────────────────────
 export function buildDashboard() {
   loadUserData();
-  currentTab = 'visao-geral';        // reset tab state ao (re)construir dashboard
-  updateNavFAB('visao-geral');        // garantir FAB visível na aba inicial
   buildHomePanel();
   buildChart();
   buildTransactions();
@@ -358,19 +356,7 @@ function generateInsights() {
 window.generateInsights = generateInsights;
 
 // ── Navigation / tabs ─────────────────────────────────────────────
-// Rastreia aba ativa para o FAB contextual
-let currentTab = 'visao-geral';
-
-function updateNavFAB(name) {
-  const wrap = document.querySelector('.nav-fab-wrap');
-  if (!wrap) return;
-  // FAB visível apenas em Início e Metas; usa visibility para manter espaço no layout
-  const show = ['visao-geral', 'metas'].includes(name);
-  wrap.style.visibility = show ? 'visible' : 'hidden';
-}
-
 export function switchTab(name) {
-  currentTab = name;
   // Atualizar top tabs por índice
   const tabNames = ['visao-geral','transacoes','categorias','metas','insights'];
   const idx = tabNames.indexOf(name);
@@ -379,18 +365,15 @@ export function switchTab(name) {
   const panel = document.getElementById('panel-' + name);
   if (panel) panel.classList.add('active');
 
-  // Sync bottom nav por data-tab (não usa índice pois a nav tem FAB no centro)
+  // Sync bottom nav por data-tab
   document.querySelectorAll('.nav-item[data-tab]').forEach(n => {
     n.classList.toggle('active', n.dataset.tab === name);
   });
-
-  updateNavFAB(name);
 }
 window.switchTab = switchTab;
 window.showTab = switchTab;
 
 export function switchBottomTab(el, name) {
-  currentTab = name;
   // Atualizar bottom nav
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   if (el) el.classList.add('active');
@@ -402,20 +385,8 @@ export function switchBottomTab(el, name) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('panel-' + name);
   if (panel) panel.classList.add('active');
-
-  updateNavFAB(name);
 }
 window.switchBottomTab = switchBottomTab;
-
-// FAB contextual: abre modal correto conforme aba ativa
-export function openContextFAB() {
-  if (currentTab === 'metas') {
-    openGoalModal();
-  } else {
-    openAddTx();
-  }
-}
-window.openContextFAB = openContextFAB;
 
 // ── Modals ────────────────────────────────────────────────────────
 export function openAddTx() {
