@@ -938,17 +938,46 @@ export function applyPlanUI(plan) {
   }
 
   // Seção de plano no modal de conta
-  const fs = document.getElementById('plan-section-free');
-  const ps = document.getElementById('plan-section-premium');
-  const isPaid = ['premium','pro','plus','trial'].includes(plan);
-  if (fs) fs.style.display = isPaid ? 'none' : 'block';
-  if (ps) ps.style.display = isPaid ? 'block' : 'none';
-
-  // Atualizar texto do plano ativo no modal
+  const fs         = document.getElementById('plan-section-free');
+  const ps         = document.getElementById('plan-section-premium');
+  const upsellEl   = document.getElementById('plan-upsell-paid');
+  const planEmoji  = document.getElementById('active-plan-emoji');
   const planNameEl = document.getElementById('active-plan-name');
+
+  const isFree = plan === 'free' || plan === 'none';
+  if (fs) fs.style.display = isFree ? 'block' : 'none';
+  if (ps) ps.style.display = isFree ? 'none'  : 'block';
+
+  // Emoji e nome do plano ativo
+  const emojis = { premium:'🏦', pro:'🤖', plus:'✨', trial:'🔬', expired:'⚠️' };
+  if (planEmoji) planEmoji.textContent = emojis[plan] || '⭐';
   if (planNameEl) {
     const names = { premium:'Finno Premium', pro:'Finno Pro', plus:'Finno Plus', trial:'Trial Premium' };
     planNameEl.textContent = names[plan] || '';
+  }
+
+  // Upsell dinâmico por plano (Free usa section própria, pagos usam plan-upsell-paid)
+  if (upsellEl) {
+    const bStyle = 'width:100%;display:flex;align-items:center;justify-content:space-between;border-radius:11px;padding:11px 14px;font-family:DM Sans,sans-serif;font-size:0.83rem;cursor:pointer;margin-bottom:7px;border:1px solid';
+    if (plan === 'plus') {
+      upsellEl.innerHTML =
+        `<div style="font-size:0.7rem;color:var(--muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px">Fazer upgrade</div>
+        <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('pro'),200)" style="${bStyle} rgba(124,109,250,0.25);background:rgba(124,109,250,0.1);color:var(--text)">
+          <span>🤖 <strong>Pro</strong> — Ativar IA financeira</span><span style="color:var(--accent);font-weight:700;font-family:Syne,sans-serif;white-space:nowrap">R$ 14,90/mês →</span>
+        </button>
+        <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('premium'),200)" style="${bStyle} rgba(124,109,250,0.35);background:linear-gradient(135deg,rgba(124,109,250,0.15),rgba(250,109,154,0.1));color:var(--text)">
+          <span>🏦 <strong>Premium</strong> — IA + Bancos</span><span style="color:#fa6d9a;font-weight:700;font-family:Syne,sans-serif;white-space:nowrap">R$ 19,90/mês →</span>
+        </button>`;
+    } else if (plan === 'pro') {
+      upsellEl.innerHTML =
+        `<div style="font-size:0.7rem;color:var(--muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px">Fazer upgrade</div>
+        <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('premium'),200)" style="${bStyle} rgba(124,109,250,0.35);background:linear-gradient(135deg,rgba(124,109,250,0.15),rgba(250,109,154,0.1));color:var(--text)">
+          <span>🏦 <strong>Premium</strong> — Conecte seus bancos</span><span style="color:#fa6d9a;font-weight:700;font-family:Syne,sans-serif;white-space:nowrap">R$ 19,90/mês →</span>
+        </button>`;
+    } else {
+      // Premium / Trial / Expired → VIP, sem upsell
+      upsellEl.innerHTML = '';
+    }
   }
 
   // Reconstruir UI dependente do plano

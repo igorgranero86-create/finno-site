@@ -1145,20 +1145,28 @@
           <span style="font-size:1.5rem">🆓</span>
           <div><div style="font-size:0.88rem;font-weight:600">Plano Gratuito</div><div style="font-size:0.75rem;color:var(--muted)">Sem conexão bancária automática · Sem acesso à IA</div></div>
         </div>
-        <div style="display:flex;gap:8px">
-          <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('pro'),200)" style="flex:1;background:rgba(124,109,250,0.15);color:var(--accent);border:1px solid rgba(124,109,250,0.3);border-radius:10px;padding:10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer">🤖 Pro R$ 14,90</button>
-          <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('premium'),200)" style="flex:1;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;border:none;border-radius:10px;padding:10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer">🏦 Premium 7d grátis</button>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('plus'),200)" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:rgba(74,154,245,0.1);color:var(--text);border:1px solid rgba(74,154,245,0.25);border-radius:11px;padding:12px 14px;font-family:DM Sans,sans-serif;font-size:0.85rem;cursor:pointer">
+            <span>✨ <strong>Plus</strong> — Sem anúncios</span><span style="color:#4a9af5;font-weight:700;font-family:Syne,sans-serif;white-space:nowrap">R$ 9,90/mês →</span>
+          </button>
+          <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('pro'),200)" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:rgba(124,109,250,0.1);color:var(--text);border:1px solid rgba(124,109,250,0.25);border-radius:11px;padding:12px 14px;font-family:DM Sans,sans-serif;font-size:0.85rem;cursor:pointer">
+            <span>🤖 <strong>Pro</strong> — IA financeira</span><span style="color:var(--accent);font-weight:700;font-family:Syne,sans-serif;white-space:nowrap">R$ 14,90/mês →</span>
+          </button>
+          <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('premium'),200)" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,rgba(124,109,250,0.18),rgba(250,109,154,0.12));color:var(--text);border:1px solid rgba(124,109,250,0.35);border-radius:11px;padding:12px 14px;font-family:DM Sans,sans-serif;font-size:0.85rem;cursor:pointer">
+            <span>🏦 <strong>Premium</strong> — Bancos + IA</span><span style="color:#fa6d9a;font-weight:700;font-family:Syne,sans-serif;white-space:nowrap">R$ 19,90/mês →</span>
+          </button>
         </div>
       </div>
       <div id="plan-section-premium" style="display:none">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-          <span style="font-size:1.5rem">⭐</span>
+          <span style="font-size:1.5rem" id="active-plan-emoji">⭐</span>
           <div>
             <div style="font-size:0.88rem;font-weight:600" id="active-plan-name">Finno Premium</div>
             <div style="font-size:0.75rem;color:var(--success)">✓ Ativo · assinatura mensal</div>
           </div>
         </div>
-        <button onclick="confirmCancelPremium()" style="width:100%;background:transparent;border:1px solid rgba(248,113,113,0.3);color:var(--danger);border-radius:10px;padding:12px;font-family:Syne,sans-serif;font-weight:600;font-size:0.85rem;cursor:pointer">Cancelar assinatura</button>
+        <button onclick="confirmCancelPremium()" style="width:100%;background:transparent;border:1px solid rgba(248,113,113,0.3);color:var(--danger);border-radius:10px;padding:12px;font-family:Syne,sans-serif;font-weight:600;font-size:0.85rem;cursor:pointer;margin-bottom:10px">Cancelar assinatura</button>
+        <div id="plan-upsell-paid"></div>
       </div>
     </div>
 
@@ -1176,7 +1184,7 @@
         <div style="font-size:0.88rem;font-weight:600">Sair da conta</div>
       </div>
     </div>
-    <div style="text-align:center;margin-top:12px;font-size:0.7rem;color:var(--muted)">Finno v2.0 · finnogastos.netlify.app</div>
+    <div style="text-align:center;margin-top:12px;font-size:0.7rem;color:var(--muted)">Finno v1.1</div>
   </div>
 </div>
 
