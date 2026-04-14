@@ -1,0 +1,29 @@
+# Dependências
+functions/node_modules/
+node_modules/
+
+# Secrets e variáveis de ambiente — NUNCA commitar
+.env
+.env.*
+.secret.*
+*.key
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+ui-debug.log
+firestore-debug.log
+database-debug.log
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

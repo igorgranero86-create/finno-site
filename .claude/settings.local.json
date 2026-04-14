@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l \"C:/Users/Igor/Downloads/Finno – Suas finanças no automático/Index\"/*.html \"C:/Users/Igor/Downloads/Finno – Suas finanças no automático/Index\"/css/*.css \"C:/Users/Igor/Downloads/Finno – Suas finanças no automático/Index\"/js/*.js)"
+    ]
+  }
+}

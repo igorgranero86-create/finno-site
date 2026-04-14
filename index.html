@@ -977,16 +977,15 @@
 
   </div><!-- /content -->
 
-  <!-- FAB -->
-  <button class="fab" onclick="openAddTx()" title="Adicionar transação">+</button>
-
-  <!-- BOTTOM NAV -->
+  <!-- BOTTOM NAV (4 itens + FAB centralizado) -->
   <div class="bottom-nav">
-    <div class="nav-item active" onclick="switchBottomTab(this,'visao-geral')"><div class="nav-icon">🏠</div>Início</div>
-    <div class="nav-item" onclick="switchBottomTab(this,'transacoes')"><div class="nav-icon">📋</div>Extrato</div>
-    <div class="nav-item" onclick="switchBottomTab(this,'categorias')"><div class="nav-icon">🍩</div>Categorias</div>
-    <div class="nav-item" onclick="switchBottomTab(this,'metas')"><div class="nav-icon">🎯</div>Metas</div>
-    <div class="nav-item" onclick="switchBottomTab(this,'insights')"><div class="nav-icon">✨</div>IA</div>
+    <div class="nav-item active" data-tab="visao-geral" onclick="switchBottomTab(this,'visao-geral')"><div class="nav-icon">🏠</div>Início</div>
+    <div class="nav-item" data-tab="transacoes" onclick="switchBottomTab(this,'transacoes')"><div class="nav-icon">📋</div>Extrato</div>
+    <div class="nav-fab-wrap">
+      <button class="nav-fab" onclick="openAddTx()" title="Adicionar transação">+</button>
+    </div>
+    <div class="nav-item" data-tab="metas" onclick="switchBottomTab(this,'metas')"><div class="nav-icon">🎯</div>Metas</div>
+    <div class="nav-item" data-tab="insights" onclick="switchBottomTab(this,'insights')"><div class="nav-icon">✨</div>IA</div>
   </div>
 
 </div>

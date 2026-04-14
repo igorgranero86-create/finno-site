@@ -29,19 +29,7 @@ let transactions = [];   // user's manual + real transactions
 let goals = [];          // user's goals
 
 // ── Demo data (simulation screen only) ───────────────────────────
-const DEMO_CATEGORIES_HOME = [
-  { name:'Moradia',     icon:'🏠', amount:2410,   color:'#0066ff', bg:'rgba(0,102,255,0.12)'   },
-  { name:'Alimentação', icon:'🛒', amount:506.10, color:'#00c896', bg:'rgba(0,200,150,0.12)'   },
-  { name:'Transporte',  icon:'🚗', amount:198.50, color:'#ff6b6b', bg:'rgba(255,107,107,0.12)' },
-  { name:'Saúde',       icon:'💊', amount:254.40, color:'#fbbf24', bg:'rgba(251,191,36,0.12)'  },
-  { name:'Assinaturas', icon:'📱', amount:66.80,  color:'#a78bfa', bg:'rgba(167,139,250,0.12)' },
-  { name:'Lazer',       icon:'🎮', amount:95.00,  color:'#34d399', bg:'rgba(52,211,153,0.12)'  },
-];
-
-const DEMO_ACCOUNTS = [
-  { name:'Nubank',      type:'Conta Corrente', last4:'4821', balance:3241.18,  color:'#820AD1', icon:'💜' },
-  { name:'Banco Inter', type:'Conta Corrente', last4:'0912', balance:10846.12, color:'#FF7A00', icon:'🔶' },
-];
+// (dados de demonstração removidos — usar apenas dados reais via Pluggy)
 
 // ── Persist user data ─────────────────────────────────────────────
 function saveTransactions() {
@@ -368,17 +356,8 @@ function generateInsights() {
 window.generateInsights = generateInsights;
 
 // ── Navigation / tabs ─────────────────────────────────────────────
-// Abas em que o FAB não faz sentido (sem adição de transações)
-const FAB_HIDDEN_TABS = ['categorias', 'insights'];
-
-function updateFABVisibility(name) {
-  const fab = document.querySelector('.fab');
-  if (!fab) return;
-  fab.style.display = FAB_HIDDEN_TABS.includes(name) ? 'none' : 'flex';
-}
-
 export function switchTab(name) {
-  // Update top tabs
+  // Atualizar top tabs por índice
   const tabNames = ['visao-geral','transacoes','categorias','metas','insights'];
   const idx = tabNames.indexOf(name);
   document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === idx));
@@ -386,29 +365,26 @@ export function switchTab(name) {
   const panel = document.getElementById('panel-' + name);
   if (panel) panel.classList.add('active');
 
-  // Sync bottom nav
-  document.querySelectorAll('.nav-item').forEach((n, i) => n.classList.toggle('active', i === idx));
-
-  // Mostrar/ocultar FAB conforme aba
-  updateFABVisibility(name);
+  // Sync bottom nav por data-tab (não usa índice pois a nav tem FAB no centro)
+  document.querySelectorAll('.nav-item[data-tab]').forEach(n => {
+    n.classList.toggle('active', n.dataset.tab === name);
+  });
 }
 window.switchTab = switchTab;
 window.showTab = switchTab;
 
 export function switchBottomTab(el, name) {
+  // Atualizar bottom nav
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   if (el) el.classList.add('active');
 
-  // Sync top tabs
+  // Sync top tabs por índice
   const tabNames = ['visao-geral','transacoes','categorias','metas','insights'];
   const idx = tabNames.indexOf(name);
   document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === idx));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('panel-' + name);
   if (panel) panel.classList.add('active');
-
-  // Mostrar/ocultar FAB conforme aba
-  updateFABVisibility(name);
 }
 window.switchBottomTab = switchBottomTab;
 
@@ -978,6 +954,9 @@ export function applyPlanUI(plan) {
   // Reconstruir UI dependente do plano
   buildGoals();
   buildInsights();
+  // Atualizar home panel com o plano correto (buildHomeInsights usa currentPlan)
+  buildHomeInsights();
+  updateHomePlanUI();
 }
 window.applyPlanUI = applyPlanUI;
 
