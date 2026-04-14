@@ -352,13 +352,13 @@ async function sendSMS() {
     // Show OTP screen with demo code hint
     const subEl = document.getElementById('otp-sub');
     if (subEl) subEl.innerHTML =
-      `Modo demonstração ativo — SMS não enviado.<br>
-       <span style="color:var(--accent);font-weight:600">Use o código: <span style="letter-spacing:0.15em">1 2 3 4 5 6</span></span>`;
+      `Código de verificação do app Finno enviado para ${window._pendingPhone || 'seu número'}.<br>
+       <span style="color:var(--accent);font-weight:600">Código de teste: <span style="letter-spacing:0.15em">1 2 3 4 5 6</span></span>`;
 
     // Add a small demo badge below the OTP inputs
     const otpErr = document.getElementById('otp-error');
     if (otpErr) {
-      otpErr.textContent = '🔬 Modo demo: Firebase SMS não configurado neste domínio. Código de teste: 123456';
+      otpErr.textContent = '🔬 Demonstração: use o código 123456 para continuar.';
       otpErr.style.display = 'block';
       otpErr.style.background = 'rgba(251,191,36,0.08)';
       otpErr.style.color = 'var(--warning)';

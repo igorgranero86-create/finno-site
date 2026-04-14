@@ -368,6 +368,15 @@ function generateInsights() {
 window.generateInsights = generateInsights;
 
 // ── Navigation / tabs ─────────────────────────────────────────────
+// Abas em que o FAB não faz sentido (sem adição de transações)
+const FAB_HIDDEN_TABS = ['categorias', 'insights'];
+
+function updateFABVisibility(name) {
+  const fab = document.querySelector('.fab');
+  if (!fab) return;
+  fab.style.display = FAB_HIDDEN_TABS.includes(name) ? 'none' : 'flex';
+}
+
 export function switchTab(name) {
   // Update top tabs
   const tabNames = ['visao-geral','transacoes','categorias','metas','insights'];
@@ -379,6 +388,9 @@ export function switchTab(name) {
 
   // Sync bottom nav
   document.querySelectorAll('.nav-item').forEach((n, i) => n.classList.toggle('active', i === idx));
+
+  // Mostrar/ocultar FAB conforme aba
+  updateFABVisibility(name);
 }
 window.switchTab = switchTab;
 window.showTab = switchTab;
@@ -394,6 +406,9 @@ export function switchBottomTab(el, name) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('panel-' + name);
   if (panel) panel.classList.add('active');
+
+  // Mostrar/ocultar FAB conforme aba
+  updateFABVisibility(name);
 }
 window.switchBottomTab = switchBottomTab;
 
@@ -428,8 +443,10 @@ export function addTransaction() {
   const type = document.getElementById('tx-type').value;
   if (!desc || !val || val <= 0) { toast('Preencha descrição e valor válidos.', 'error'); return; }
   const amount = type === 'Gasto' ? -Math.abs(val) : Math.abs(val);
+  const txDateInput = document.getElementById('tx-date')?.value;
   const today = new Date().toISOString().split('T')[0];
-  transactions.unshift({ date: today, desc, cat, amount, bank: 'Manual' });
+  const txDate = txDateInput || today;
+  transactions.unshift({ date: txDate, desc, cat, amount, bank: 'Manual' });
   saveTransactions();
   buildTransactions();
   buildCategories();
@@ -437,12 +454,14 @@ export function addTransaction() {
   closeModal('modal-tx');
   document.getElementById('tx-desc').value = '';
   document.getElementById('tx-val').value = '';
+  const txDateEl = document.getElementById('tx-date');
+  if (txDateEl) txDateEl.value = '';
   toast('Transação adicionada! ✓', 'success');
 }
 window.addTransaction = addTransaction;
 
 // Ícones padrão por tipo de meta
-const GOAL_ICONS = { casamento:'💍', viagem:'✈️', casa:'🏠', carro:'🚗', estudo:'📚', outros:'🎯' };
+const GOAL_ICONS = { casamento:'💍', viagem:'✈️', casa:'🏠', carro:'🚗', estudo:'📚', emergencia:'🚨', outros:'🎯' };
 
 export function addGoal() {
   const name    = document.getElementById('goal-name').value.trim();
@@ -929,8 +948,7 @@ export function applyPlanUI(plan) {
       plus:    'linear-gradient(135deg,#4a9af5,#7c6dfa)',
     };
     if (gradients[plan]) { avatar.style.background = gradients[plan]; }
-    const titles = { premium:'Premium ⭐', trial:'Trial ativo 🔬', pro:'Pro 🤖', plus:'Plus ✨', free:'Gratuito', none:'Gratuito' };
-    avatar.title = 'Finno ' + (titles[plan] || 'Gratuito');
+    avatar.title = 'Minha conta';
   }
 
   // Badge de plano no modal de conta
@@ -1020,8 +1038,8 @@ export async function openPluggyConnect() {
   const ci = window.connectedItems || [];
 
   if (!hasBanks(state)) {
-    showScreen('screen-connect'); showConnectState(state, uid);
-    toast('Conexão bancária disponível apenas no plano Premium.','error'); return;
+    showUpgrade('Conecte seu banco com o plano Premium — 7 dias grátis para testar.');
+    return;
   }
   if (state === 'expired') { showScreen('screen-connect'); showConnectState('expired', uid); return; }
   if (ci.length >= limit) {
@@ -1362,10 +1380,35 @@ window.updateHomePlanUI = updateHomePlanUI;
 function buildHomeAccounts() {
   const el = document.getElementById('home-accounts-list');
   if (!el) return;
-  const accounts = DEMO_ACCOUNTS; // Will be replaced by real bank data
+
+  // Usar itens reais conectados via Pluggy; se vazio, exibir estado vazio
+  const ci = window.connectedItems || [];
+  if (ci.length === 0) {
+    el.innerHTML = `<div style="text-align:center;padding:20px 16px;color:var(--muted);font-size:0.82rem">
+      <div style="font-size:1.6rem;margin-bottom:8px">🏦</div>
+      <div>Nenhum banco conectado ainda.</div>
+      <div style="margin-top:4px;font-size:0.75rem;opacity:0.7">Os saldos aparecerão aqui após conectar.</div>
+    </div>`;
+    return;
+  }
+
+  const accounts = ci.map(item => ({
+    name: item.details?.connector?.name || 'Banco',
+    type: item.details?.type || 'Conta',
+    last4: '',
+    balance: item.details?.balance ?? null,
+    color: '#820AD1',
+    icon: '🏦'
+  }));
+
   el.innerHTML = accounts.map(acc => {
-    const isNeg = acc.balance < 0;
-    return `<div class="home-account-row"><div class="home-account-dot"></div><div style="font-size:1.2rem">${acc.icon}</div><div style="flex:1;min-width:0"><div style="font-size:0.85rem;font-weight:600;color:#e8f0ff">${acc.name}</div><div style="font-size:0.72rem;color:rgba(180,210,255,0.5);margin-top:1px">${acc.type} · •••• ${acc.last4}</div></div><div style="text-align:right;flex-shrink:0"><div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:${isNeg?'#ff6b6b':'#fff'}">${isNeg?'−':''}R$ ${Math.abs(acc.balance).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div><div style="font-size:0.65rem;color:#00c896;margin-top:1px">● conectado</div></div></div>`;
+    const isNeg = acc.balance !== null && acc.balance < 0;
+    const balanceStr = acc.balance !== null
+      ? `${isNeg?'−':''}R$ ${Math.abs(acc.balance).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+      : '—';
+    const balColor = isNeg ? '#ff6b6b' : '#fff';
+    const last4Part = acc.last4 ? ` · •••• ${acc.last4}` : '';
+    return `<div class="home-account-row"><div class="home-account-dot"></div><div style="font-size:1.2rem">${acc.icon}</div><div style="flex:1;min-width:0"><div style="font-size:0.85rem;font-weight:600;color:#e8f0ff">${acc.name}</div><div style="font-size:0.72rem;color:rgba(180,210,255,0.5);margin-top:1px">${acc.type}${last4Part}</div></div><div style="text-align:right;flex-shrink:0"><div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;color:${balColor}">${balanceStr}</div><div style="font-size:0.65rem;color:#00c896;margin-top:1px">● conectado</div></div></div>`;
   }).join('');
 }
 window.buildHomeAccounts = buildHomeAccounts;

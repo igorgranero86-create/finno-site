@@ -269,7 +269,7 @@
     <!-- ══ REGISTER ══════════════════════════════════════════════ -->
     <div id="auth-register">
       <h2>Criar sua conta</h2>
-      <div class="auth-sub">Grátis para sempre · Sem cartão de crédito · Leva 1 minuto</div>
+      <div class="auth-sub">Plano gratuito disponível · Sem cartão de crédito · Leva 1 minuto</div>
 
       <!-- Google — acesso mais rápido -->
       <button class="social-btn google-btn" onclick="authGoogle()">
@@ -567,11 +567,28 @@
       </div>
       <div id="sim-tx-list"></div>
     </div>
-    <div style="background:linear-gradient(135deg,rgba(74,222,128,0.08),rgba(109,250,200,0.04));border:1px solid rgba(74,222,128,0.2);border-radius:20px;padding:20px;margin-bottom:100px">
+    <div style="background:linear-gradient(135deg,rgba(74,222,128,0.08),rgba(109,250,200,0.04));border:1px solid rgba(74,222,128,0.2);border-radius:20px;padding:20px;margin-bottom:16px">
       <div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;margin-bottom:4px">💚 Saúde financeira: <span style="color:var(--success)">78/100 — Boa</span></div>
       <div style="font-size:0.8rem;color:var(--muted);margin-bottom:12px">Taxa de poupança de 54% — acima da média brasileira</div>
       <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:99px;overflow:hidden">
         <div id="sim-health-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#4ade80,#6dfac8);border-radius:99px;transition:width 1.2s ease"></div>
+      </div>
+    </div>
+    <div style="background:linear-gradient(135deg,rgba(130,10,209,0.12),rgba(224,64,251,0.06));border:1px solid rgba(130,10,209,0.25);border-radius:20px;padding:20px;margin-bottom:100px">
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;margin-bottom:12px">🤖 Insights com IA <span style="font-size:0.72rem;font-weight:400;color:var(--accent);background:rgba(130,10,209,0.15);padding:2px 8px;border-radius:99px;margin-left:6px">Finno Pro</span></div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start">
+          <span style="font-size:1.1rem;flex-shrink:0">📊</span>
+          <div><div style="font-size:0.82rem;font-weight:600;margin-bottom:2px">Você gasta 32% com Moradia</div><div style="font-size:0.75rem;color:var(--muted)">Ideal é abaixo de 30%. Renegociar aluguel pode economizar R$ 240/mês.</div></div>
+        </div>
+        <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start">
+          <span style="font-size:1.1rem;flex-shrink:0">🎯</span>
+          <div><div style="font-size:0.82rem;font-weight:600;margin-bottom:2px">Meta de reserva em risco</div><div style="font-size:0.75rem;color:var(--muted)">Seu ritmo atual atinge a meta em 14 meses. Economize R$ 80 a mais por mês para chegar em 10.</div></div>
+        </div>
+        <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start">
+          <span style="font-size:1.1rem;flex-shrink:0">🔔</span>
+          <div><div style="font-size:0.82rem;font-weight:600;margin-bottom:2px">Alerta: assinaturas duplicadas</div><div style="font-size:0.75rem;color:var(--muted)">Detectamos 2 cobranças de streaming este mês. Possível economia de R$ 44,90.</div></div>
+        </div>
       </div>
     </div>
   </div>
@@ -942,8 +959,8 @@
         <div id="insights-list"></div>
       </div>
       <!-- pointer-events:none no container para não bloquear tabs/nav; auto nos filhos clicáveis -->
-      <div class="paywall-overlay" id="paywall-insights" style="display:none;flex-direction:column;pointer-events:none">
-        <div style="pointer-events:auto;display:flex;flex-direction:column;align-items:center;text-align:center;padding:32px 24px;width:100%">
+      <div class="paywall-overlay" id="paywall-insights" style="display:none;flex-direction:column;justify-content:center;pointer-events:none">
+        <div style="pointer-events:auto;display:flex;flex-direction:column;align-items:center;text-align:center;padding:32px 24px 40px;width:100%">
           <div class="paywall-icon">🤖</div>
           <div class="paywall-title">Insights com IA disponíveis no Pro</div>
           <div class="paywall-sub">Usuários Pro identificam e cortam em média <strong style="color:var(--text)">R$ 580/mês</strong> em gastos que passariam despercebidos.</div>
@@ -999,6 +1016,7 @@
         <option>🔧 Outros</option>
       </select>
     </div>
+    <div class="form-group"><label>Data <span style="color:var(--muted);font-weight:400;font-size:0.78rem">(opcional — padrão: hoje)</span></label><input type="date" id="tx-date"></div>
     <button class="btn-primary" onclick="addTransaction()" style="margin-top:8px">Salvar transação</button>
     <button onclick="closeModal('modal-tx')" style="width:100%;background:none;border:none;color:var(--muted);padding:14px;cursor:pointer;font-family:'DM Sans',sans-serif">Cancelar</button>
   </div>
@@ -1010,13 +1028,14 @@
     <div class="modal-handle"></div>
     <div class="modal-title">Nova meta financeira</div>
     <div class="form-group">
-      <label>Tipo de meta</label>
+      <label>Categoria</label>
       <select id="goal-type">
         <option value="viagem">✈️ Viagem</option>
         <option value="casa">🏠 Casa</option>
         <option value="carro">🚗 Carro</option>
         <option value="casamento">💍 Casamento</option>
         <option value="estudo">📚 Estudo</option>
+        <option value="emergencia">🚨 Emergência</option>
         <option value="outros" selected>🎯 Outros</option>
       </select>
     </div>
@@ -1123,7 +1142,7 @@
       <div id="plan-section-free" style="display:none">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
           <span style="font-size:1.5rem">🆓</span>
-          <div><div style="font-size:0.88rem;font-weight:600">Plano Gratuito</div><div style="font-size:0.75rem;color:var(--muted)">IA e bancos bloqueados</div></div>
+          <div><div style="font-size:0.88rem;font-weight:600">Plano Gratuito</div><div style="font-size:0.75rem;color:var(--muted)">Sem conexão bancária automática · Sem acesso à IA</div></div>
         </div>
         <div style="display:flex;gap:8px">
           <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('pro'),200)" style="flex:1;background:rgba(124,109,250,0.15);color:var(--accent);border:1px solid rgba(124,109,250,0.3);border-radius:10px;padding:10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer">🤖 Pro R$ 14,90</button>
