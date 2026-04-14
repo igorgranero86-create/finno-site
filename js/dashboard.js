@@ -24,6 +24,112 @@ window.closeModal = closeModal;
 export let currentPlan = 'free';
 window.connectedItems = window.connectedItems || [];
 
+// ── Trial eligibility rules ───────────────────────────────────────
+// Controla quando o trial de 7 dias pode ser ativado.
+// Regra: ≥3 lançamentos manuais, OU ≥1 meta, OU visitou dashboard + tentou conectar banco.
+const TRIAL_RULES_KEY = 'finno_trial_rules';
+
+function getTrialRules() {
+  try {
+    const raw = localStorage.getItem(TRIAL_RULES_KEY);
+    return raw ? JSON.parse(raw) : {
+      manualEntriesCount: 0, goalsCount: 0,
+      hasVisitedDashboard: false, hasAttemptedBankConnection: false,
+      trialUnlocked: false
+    };
+  } catch (e) {
+    return { manualEntriesCount: 0, goalsCount: 0, hasVisitedDashboard: false, hasAttemptedBankConnection: false, trialUnlocked: false };
+  }
+}
+
+function saveTrialRules(rules) {
+  localStorage.setItem(TRIAL_RULES_KEY, JSON.stringify(rules));
+}
+
+function evaluateTrialEligibility() {
+  const rules = getTrialRules();
+  const eligible =
+    rules.manualEntriesCount >= 3 ||
+    rules.goalsCount >= 1 ||
+    (rules.hasVisitedDashboard && rules.hasAttemptedBankConnection);
+  rules.trialUnlocked = eligible;
+  saveTrialRules(rules);
+  return eligible;
+}
+window.evaluateTrialEligibility = evaluateTrialEligibility;
+
+function incrementManualEntriesCount() {
+  const rules = getTrialRules();
+  rules.manualEntriesCount += 1;
+  saveTrialRules(rules);
+  evaluateTrialEligibility();
+}
+
+function incrementGoalsCount() {
+  const rules = getTrialRules();
+  rules.goalsCount += 1;
+  saveTrialRules(rules);
+  evaluateTrialEligibility();
+}
+
+function markDashboardVisited() {
+  const rules = getTrialRules();
+  if (rules.hasVisitedDashboard) return; // já registrado, sem reescrita
+  rules.hasVisitedDashboard = true;
+  saveTrialRules(rules);
+  evaluateTrialEligibility();
+}
+
+function markBankConnectionIntent() {
+  const rules = getTrialRules();
+  if (rules.hasAttemptedBankConnection) return; // já registrado
+  rules.hasAttemptedBankConnection = true;
+  saveTrialRules(rules);
+  evaluateTrialEligibility();
+}
+
+function showTrialLockedMessage() {
+  const rules = getTrialRules();
+  const rem = Math.max(0, 3 - rules.manualEntriesCount);
+  const msg = rules.goalsCount === 0 && rem > 0
+    ? `Crie ${rem} lançamento${rem > 1 ? 's' : ''} ou 1 meta para liberar seu teste grátis de 7 dias.`
+    : 'Crie 3 lançamentos ou 1 meta para liberar seu teste grátis de 7 dias.';
+  toast(msg, 'error');
+}
+
+function updateTrialButtonUI() {
+  const eligible = evaluateTrialEligibility();
+  const btn  = document.getElementById('start-trial-btn');
+  const hint = document.getElementById('trial-eligibility-hint');
+  if (btn) {
+    btn.textContent = eligible ? '🚀 Testar grátis por 7 dias →' : '🔒 Desbloquear teste grátis →';
+    btn.style.opacity = eligible ? '1' : '0.72';
+  }
+  if (hint) {
+    if (eligible) {
+      hint.textContent = '✓ Você desbloqueou o trial — clique para ativar!';
+      hint.style.color = 'var(--success)';
+    } else {
+      const rules = getTrialRules();
+      const rem = Math.max(0, 3 - rules.manualEntriesCount);
+      hint.textContent = `Crie 1 meta ou ${rem} lançamento${rem !== 1 ? 's' : ''} para liberar.`;
+      hint.style.color = 'var(--muted)';
+    }
+  }
+}
+window.updateTrialButtonUI = updateTrialButtonUI;
+
+export function handleTrialUnlockFlow() {
+  const eligible = evaluateTrialEligibility();
+  if (eligible) {
+    startTrial();
+  } else {
+    showTrialLockedMessage();
+    updateTrialButtonUI(); // atualizar visual do botão/hint
+  }
+}
+window.handleTrialUnlockFlow = handleTrialUnlockFlow;
+
 // ── User data (starts empty, loaded from localStorage) ────────────
 let transactions = [];   // user's manual + real transactions
 let goals = [];          // user's goals
@@ -114,6 +220,7 @@ window.runLoadingSequence = runLoadingSequence;
 
 // ── Build dashboard ───────────────────────────────────────────────
 export function buildDashboard() {
+  markDashboardVisited(); // registrar uso real do dashboard (critério de elegibilidade do trial)
   loadUserData();
   buildHomePanel();
   buildChart();
@@ -433,6 +540,7 @@ export function addTransaction() {
   const txDateEl = document.getElementById('tx-date');
   if (txDateEl) txDateEl.value = '';
   toast('Transação adicionada! ✓', 'success');
+  incrementManualEntriesCount(); // contabilizar para elegibilidade do trial
 }
 window.addTransaction = addTransaction;
 
@@ -461,6 +569,7 @@ export function addGoal() {
   const typeEl = document.getElementById('goal-type'); if(typeEl) typeEl.value='outros';
   const dateEl = document.getElementById('goal-end-date'); if(dateEl) dateEl.value='';
   toast('Meta criada! ✓', 'success');
+  incrementGoalsCount(); // contabilizar para elegibilidade do trial
 }
 window.addGoal = addGoal;
 
@@ -712,6 +821,10 @@ export function showConnectState(state, uid) {
   const el = document.getElementById('connect-state-' + target);
   if (!el) return;
   el.style.display = 'block';
+  if (target === 'paywall') {
+    // Atualizar botão e hint de elegibilidade do trial
+    setTimeout(updateTrialButtonUI, 50);
+  }
   if (state === 'trial') {
     const label = document.getElementById('trial-days-label');
     if (label) label.textContent = getTrialDaysLeft(uid) + ' dia(s) restante(s) de trial';
@@ -1003,6 +1116,7 @@ window.confirmCancelPremium = confirmCancelPremium;
 export function goToBankConnect() {
   const uid = auth.currentUser?.uid;
   const state = getPlanState(uid);
+  markBankConnectionIntent(); // registrar que o usuário tentou acessar conexão bancária
   showScreen('screen-connect');
   showConnectState(state, uid);
 }
@@ -1327,30 +1441,79 @@ export function buildHomeInsights() {
   const el = document.getElementById('home-insights-chips');
   if (!el) return;
 
-  // Sem IA (free, plus, none, expired): teaser + CTA de conversão
+  // Sem IA (free, plus, none, expired): insight do mês com dados reais + CTA suave
   if (!hasAI(currentPlan)) {
-    const isPlusMsg = currentPlan === 'plus'
+    // Atualizar título da seção para "💡 Insight do mês"
+    const titleEl = document.getElementById('insights-section-title');
+    if (titleEl) titleEl.innerHTML = '💡 Insight do mês <a onclick="showUpgrade(\'Ative a IA para ver análises completas dos seus gastos.\')">Ver mais →</a>';
+
+    const txMonth = filterTxMonth(transactions);
+    const expMonth = txMonth.filter(t => t.amount < 0);
+    const incMonth = txMonth.filter(t => t.amount > 0);
+    const totalExpMonth = expMonth.reduce((s, t) => s + Math.abs(t.amount), 0);
+    const totalIncMonth = incMonth.reduce((s, t) => s + t.amount, 0);
+
+    // Categoria com mais gastos no mês
+    const catMap = {};
+    expMonth.forEach(t => {
+      const k = (t.cat || 'Outros').replace(/^[\u{1F000}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}✓→←↑↓]+\s*/u, '').trim();
+      catMap[k] = (catMap[k] || 0) + Math.abs(t.amount);
+    });
+    const topCat = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
+    const topPct = topCat && totalExpMonth > 0 ? Math.round(topCat[1] / totalExpMonth * 100) : 0;
+
+    const ctaMsg = currentPlan === 'plus'
       ? 'Você já tem o Plus! Faça upgrade para o Pro por R$ 14,90/mês e ative a IA financeira.'
-      : 'Usuários Pro economizam em média R$ 580/mês ao identificar gastos desnecessários com IA.';
-    el.innerHTML = `
-      <div class="home-insight-chip" onclick="showUpgrade('${isPlusMsg}')" style="cursor:pointer">
-        <div class="home-insight-icon" style="background:rgba(130,10,209,0.15)">🤖</div>
-        <div class="home-insight-text">
-          <strong>Suas finanças têm padrões ocultos.</strong> A IA do Finno identifica onde você perde dinheiro sem perceber.
-        </div>
-        <div class="home-insight-arrow">›</div>
-      </div>
-      <div onclick="showUpgrade('${isPlusMsg}')"
-           style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,rgba(130,10,209,0.1),rgba(160,32,224,0.06));border:1px solid rgba(130,10,209,0.25);border-radius:16px;cursor:pointer">
-        <div style="font-size:1.5rem;flex-shrink:0">🔒</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:0.83rem;font-weight:700;color:var(--text);margin-bottom:2px">Desbloqueie insights com IA</div>
-          <div style="font-size:0.73rem;color:var(--muted);line-height:1.4">Média de R$ 580/mês economizados · alertas · taxa de poupança</div>
-        </div>
-        <div style="background:linear-gradient(135deg,var(--accent),#a020e0);color:white;padding:6px 12px;border-radius:9px;font-size:0.72rem;font-weight:700;white-space:nowrap;flex-shrink:0;box-shadow:0 4px 12px rgba(130,10,209,0.35)">Ver planos</div>
+      : 'Ative a IA para ver análises completas dos seus gastos.';
+
+    let html = '';
+
+    if (transactions.length === 0) {
+      // Empty state encorajador
+      html = `<div class="home-insight-chip">
+        <div class="home-insight-icon" style="background:rgba(74,154,245,0.12)">📝</div>
+        <div class="home-insight-text"><strong>Registre sua primeira transação</strong> para ver um resumo dos seus gastos aqui.</div>
       </div>`;
+    } else {
+      // Insight 1: maior categoria com estimativa de economia anual
+      if (topCat && totalExpMonth > 0) {
+        const cut10 = Math.round(topCat[1] * 0.1);
+        const annualSavings = cut10 * 12;
+        const annualTxt = cut10 > 0
+          ? ` Reduzindo R$ ${cut10.toLocaleString('pt-BR')}/mês você economiza <strong>R$ ${annualSavings.toLocaleString('pt-BR')}/ano</strong>.`
+          : '';
+        html += `<div class="home-insight-chip">
+          <div class="home-insight-icon" style="background:rgba(252,186,3,0.12)">💡</div>
+          <div class="home-insight-text">Seu maior gasto foi <strong>${topCat[0]}</strong> (${topPct}%).${annualTxt}</div>
+        </div>`;
+      }
+      // Insight 2: taxa de poupança (só se tiver renda registrada)
+      if (totalIncMonth > 0 && totalExpMonth > 0) {
+        const savingsRate = Math.round(((totalIncMonth - totalExpMonth) / totalIncMonth) * 100);
+        if (savingsRate > 0) {
+          html += `<div class="home-insight-chip">
+            <div class="home-insight-icon" style="background:rgba(0,200,150,0.12)">💰</div>
+            <div class="home-insight-text">Você poupou <strong>${savingsRate}%</strong> da renda este mês.${savingsRate >= 20 ? ' Ótimo resultado! 🎉' : ' Tente chegar a 20%.'}</div>
+          </div>`;
+        }
+      }
+    }
+
+    // CTA suave — 1 linha, não dominante
+    html += `<div onclick="showUpgrade('${ctaMsg}')"
+      style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(124,109,250,0.07);border:1px solid rgba(124,109,250,0.15);border-radius:13px;cursor:pointer;margin-top:2px">
+      <span style="font-size:0.95rem">✨</span>
+      <span style="flex:1;font-size:0.76rem;color:var(--muted);line-height:1.4">${currentPlan === 'plus' ? 'Ative a IA para análises completas' : 'Desbloqueie análises automáticas com o Pro'}</span>
+      <span style="font-size:0.72rem;color:var(--accent);font-weight:700;white-space:nowrap">R$ 14,90 →</span>
+    </div>`;
+
+    el.innerHTML = html;
     return;
   }
+
+  // Pro/Premium/trial: restaurar título padrão
+  const titleElAI = document.getElementById('insights-section-title');
+  if (titleElAI) titleElAI.innerHTML = 'Insights <a onclick="switchTab(\'insights\')">Ver análise completa →</a>';
 
   // Pro/Premium/trial: mostrar insights reais ou empty state
   if (transactions.length === 0) {
