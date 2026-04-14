@@ -269,7 +269,7 @@
     <!-- ══ REGISTER ══════════════════════════════════════════════ -->
     <div id="auth-register">
       <h2>Criar sua conta</h2>
-      <div class="auth-sub">Plano gratuito disponível · Sem cartão de crédito · Leva 1 minuto</div>
+      <div class="auth-sub">Plano gratuito disponível · Comece em 1 minuto</div>
 
       <!-- Google — acesso mais rápido -->
       <button class="social-btn google-btn" onclick="authGoogle()">
@@ -330,7 +330,7 @@
     <!-- ══ LOGIN ═════════════════════════════════════════════════ -->
     <div id="auth-login" style="display:none">
       <h2>Bem-vindo de volta</h2>
-      <div class="auth-sub">Acesse seus bancos sincronizados e seus insights.</div>
+      <div class="auth-sub">Acesse seu controle financeiro, metas e insights disponíveis no seu plano.</div>
 
       <button class="social-btn google-btn" onclick="authGoogle()">
         <span class="sicon"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.859-3.048.859-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/><path d="M3.964 10.705c-.18-.54-.282-1.117-.282-1.705s.102-1.165.282-1.705V4.963H.957C.347 6.175 0 7.55 0 9s.348 2.826.957 4.037l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.963L3.964 7.295C4.672 5.169 6.656 3.58 9 3.58z" fill="#EA4335"/></svg></span>
@@ -478,6 +478,7 @@
       </div>
       <button class="plan-btn premium-btn">Ativar IA e economizar mais →</button>
       <div style="text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.35);margin-top:6px">= R$ 0,49/dia · cancele quando quiser</div>
+      <div style="text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.3);margin-top:4px">IA inclusa · conexão bancária disponível no Premium</div>
     </div>
 
     <!-- PREMIUM -->
@@ -494,7 +495,7 @@
         <div class="plan-feature"><span class="fi">💳</span> Até 2 contas bancárias simultâneas</div>
         <div class="plan-feature"><span class="fi">⚡</span> Suporte prioritário 24h</div>
       </div>
-      <button class="plan-btn premium-btn">🚀 Automatizar tudo — 7 dias grátis →</button>
+      <button class="plan-btn premium-btn">🚀 Testar automação completa por 7 dias →</button>
       <div style="text-align:center;font-size:0.72rem;color:rgba(255,255,255,0.35);margin-top:6px">Sem cobranças durante o trial · = R$ 0,66/dia</div>
     </div>
 
@@ -508,6 +509,7 @@
         <div class="plan-feature"><span class="fi">✅</span> Lançamentos e categorias</div>
         <div class="plan-feature"><span class="fi">✅</span> Até 3 metas financeiras</div>
         <div class="plan-feature"><span class="fi">✅</span> Gráficos e resumo mensal</div>
+        <div class="plan-feature locked"><span class="fi">🚫</span> Sem conexão bancária automática</div>
         <div class="plan-feature locked"><span class="fi">📢</span> Inclui anúncios</div>
         <div class="plan-feature locked"><span class="fi">⬆️</span> Desbloqueie IA e bancos automáticos nos planos pagos</div>
       </div>
@@ -623,8 +625,8 @@
           <div style="font-size:0.75rem;color:var(--muted);margin-top:4px">Máximo de 2 bancos · Cancele quando quiser</div>
         </div>
         <button class="btn-primary" id="start-trial-btn" onclick="handleTrialUnlockFlow()" style="font-size:1rem;padding:17px;margin-bottom:8px;background:linear-gradient(135deg,var(--accent),#a020e0);box-shadow:0 8px 28px rgba(130,10,209,0.4)">🔒 Desbloquear teste grátis →</button>
-        <div id="trial-eligibility-hint" style="text-align:center;font-size:0.74rem;color:var(--muted);margin-bottom:10px;line-height:1.5">Crie 1 meta ou 3 lançamentos para liberar.</div>
-        <button onclick="showSimulation()" style="width:100%;background:none;border:1px solid rgba(124,109,250,0.25);color:var(--accent);padding:10px 14px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.82rem;border-radius:12px;margin-bottom:8px">👁 Ver como o app funciona com meus dados</button>
+        <div id="trial-eligibility-hint" style="text-align:center;font-size:0.74rem;color:var(--muted);margin-bottom:10px;line-height:1.5">Use o app por alguns minutos: crie 1 meta ou 3 lançamentos para liberar seu teste grátis.</div>
+        <button onclick="showSimulation()" style="width:100%;background:none;border:1px solid rgba(124,109,250,0.25);color:var(--accent);padding:10px 14px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.82rem;border-radius:12px;margin-bottom:8px">👁 Ver como minhas finanças ficariam no automático</button>
         <button onclick="skipToFree()" style="width:100%;background:none;border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.75);padding:13px 14px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.88rem;border-radius:12px;transition:all 0.2s" onmouseover="this.style.borderColor='rgba(255,255,255,0.35)';this.style.color='#fff'" onmouseout="this.style.borderColor='rgba(255,255,255,0.18)';this.style.color='rgba(255,255,255,0.75)'">→ Usar sem banco por enquanto</button>
         <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:14px;flex-wrap:wrap">
           <span style="font-size:0.7rem;color:var(--muted)">🔒 SSL seguro</span>
@@ -723,11 +725,9 @@
     </div>
   </div>
 
-  <!-- Banner de anúncios — visível apenas no plano Free -->
-  <div id="ad-banner" style="display:none;align-items:center;gap:10px;padding:8px 16px;background:rgba(251,191,36,0.06);border-bottom:1px solid rgba(251,191,36,0.15);cursor:pointer" onclick="showUpgrade('Remova os anúncios com o Finno Plus por apenas R$ 9,90/mês.')">
-    <span style="font-size:0.75rem">📢</span>
-    <span style="font-size:0.73rem;color:rgba(251,191,36,0.8);flex:1">Anúncio · Banco Inter — Conta digital gratuita com rendimento automático</span>
-    <span style="font-size:0.65rem;background:rgba(251,191,36,0.12);color:rgba(251,191,36,0.7);padding:2px 8px;border-radius:6px;white-space:nowrap">Remover ✕</span>
+  <!-- Banner de anúncios — visível apenas no plano Free (slot Play Store) -->
+  <div id="ad-banner" style="display:none;align-items:center;justify-content:center;padding:4px 0;border-bottom:1px solid var(--border)">
+    <!-- Slot para anúncio da Play Store -->
   </div>
 
   <div class="tabs">
@@ -764,15 +764,9 @@
         <div class="home-metric">
           <div class="m-icon">📉</div><div class="m-label">Gastos</div>
           <div class="m-value negative" id="home-expenses">R$ 4.213</div>
-          <div class="m-sub">este mês</div>
-        </div>
-        <div class="home-metric">
-          <div class="m-icon">📈</div><div class="m-label">Receitas</div>
+          <div class="m-sub" id="home-expenses-label">este mês</div>
           <div class="m-value positive" id="home-income">R$ 8.500</div>
-          <div class="m-sub">este mês</div>
-        </div>
-        <div class="home-metric">
-          <div class="m-icon">💵</div><div class="m-label">Disponível</div>
+          <div class="m-sub" id="home-income-label">este mês</div>
           <div class="m-value neutral" id="home-available">R$ 4.286</div>
           <div class="m-sub">saldo livre</div>
         </div>
@@ -1207,6 +1201,35 @@
 
 <!-- Entry point ES module -->
 <script type="module" src="js/app.js"></script>
+<script>
+// Atualiza labels de período nos cards de Gastos e Receitas
+(function(){
+  const _labels = { month: 'este mês', week: 'esta semana', all: 'no total' };
+  const _orig = window.setHomePeriod;
+  window.setHomePeriod = function(btn, period) {
+    if (typeof _orig === 'function') _orig(btn, period);
+    const label = _labels[period] || 'este mês';
+    const el1 = document.getElementById('home-expenses-label');
+    const el2 = document.getElementById('home-income-label');
+    if (el1) el1.textContent = label;
+    if (el2) el2.textContent = label;
+  };
+  // Garante que o wrapper é aplicado após o módulo carregar
+  document.addEventListener('DOMContentLoaded', function(){
+    const _late = window.setHomePeriod;
+    if (_late && _late.toString().indexOf('home-expenses-label') === -1) {
+      window.setHomePeriod = function(btn, period) {
+        _late(btn, period);
+        const label = _labels[period] || 'este mês';
+        const el1 = document.getElementById('home-expenses-label');
+        const el2 = document.getElementById('home-income-label');
+        if (el1) el1.textContent = label;
+        if (el2) el2.textContent = label;
+      };
+    }
+  });
+})();
+</script>
 
 </body>
 </html>
