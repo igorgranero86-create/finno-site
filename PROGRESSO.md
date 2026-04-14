@@ -33,6 +33,13 @@
 ## 🔄 Em andamento
 - Nenhuma tarefa incompleta identificada
 
+## ✅ Correções v2 (sessão atual)
+- **Paywall por plano** `js/dashboard.js` — `applyPlanUI()` agora chama `buildHomeInsights()` + `updateHomePlanUI()` → Premium não vê mais chip de "Desbloqueie IA"; Plus vê paywall de IA; Pro vê paywall de bancos apenas
+- **DEMO_ACCOUNTS / DEMO_CATEGORIES_HOME removidos** `js/dashboard.js` — constantes não usadas eliminadas; home panel mostra dados reais ou estado vazio
+- **FAB contextual** `js/dashboard.js` + `index.html` + `css/styles.css` — FAB centralizado na bottom nav (`translateY(-12px)`); `openContextFAB()` abre modal de transação em Início e modal de meta em Metas; FAB oculto (`visibility:hidden`) em Extrato, Categorias e IA
+- **Bottom nav reestruturado** `index.html` — 4 itens + FAB central; `data-tab` nos nav-items; Categorias removida do bottom nav (acessível pelo top tab)
+- **Modal de meta limpo** `index.html` — ordem: Categoria → Descrição → Valor alvo → Já guardei (opcional) → Data limite (opcional); categorias relevantes: Casamento, Viagem, Casa própria, Carro, Estudo/Curso, Reserva de emergência, Outros
+
 ## ✅ Correções UX (sessão atual — 11 itens)
 - **Fix #1** `css/styles.css` — `.auth-tagline` margin-top: -18px → 3px (logo/tagline overlap)
 - **Fix #2** `js/dashboard.js` — `applyPlanUI()`: `avatar.title` sempre "Minha conta" (sem tooltip de plano)
