@@ -809,6 +809,8 @@
         <div class="home-accounts" id="home-accounts-list"></div>
       </div>
 
+      <!-- FAB exclusivo do painel Início -->
+      <button class="panel-fab" onclick="openAddTx()" title="Adicionar transação">+</button>
       <div style="height:90px"></div>
     </div>
 
@@ -903,6 +905,8 @@
         <div class="paywall-sub">Defina metas com o Finno Premium.</div>
         <button class="paywall-btn" onclick="showUpgrade('Desbloqueie metas financeiras com o Finno Premium por apenas R$ 19,90/mês.')">🔓 Desbloquear Premium</button>
       </div>
+      <!-- FAB exclusivo do painel Metas -->
+      <button class="panel-fab" onclick="openGoalModal()" title="Nova meta">+</button>
     </div>
 
     <!-- GOAL DETAIL MODAL -->
@@ -977,13 +981,11 @@
 
   </div><!-- /content -->
 
-  <!-- BOTTOM NAV (4 itens + FAB centralizado) -->
+  <!-- BOTTOM NAV (5 itens, sem FAB central) -->
   <div class="bottom-nav">
     <div class="nav-item active" data-tab="visao-geral" onclick="switchBottomTab(this,'visao-geral')"><div class="nav-icon">🏠</div>Início</div>
     <div class="nav-item" data-tab="transacoes" onclick="switchBottomTab(this,'transacoes')"><div class="nav-icon">📋</div>Extrato</div>
-    <div class="nav-fab-wrap">
-      <button class="nav-fab" onclick="openContextFAB()" title="Adicionar">+</button>
-    </div>
+    <div class="nav-item" data-tab="categorias" onclick="switchBottomTab(this,'categorias')"><div class="nav-icon">🍩</div>Categorias</div>
     <div class="nav-item" data-tab="metas" onclick="switchBottomTab(this,'metas')"><div class="nav-icon">🎯</div>Metas</div>
     <div class="nav-item" data-tab="insights" onclick="switchBottomTab(this,'insights')"><div class="nav-icon">✨</div>IA</div>
   </div>
