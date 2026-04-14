@@ -127,11 +127,16 @@ export async function saveCPF(cpf, uid) {
 // ── Plan state helpers ────────────────────────────────────────────
 // States: 'none' | 'free' | 'trial' | 'expired' | 'premium'
 
+// Estados possíveis: 'none' | 'free' | 'plus' | 'pro' | 'premium' | 'trial' | 'expired'
+// Planos pagos: plus=R$9,90 | pro=R$14,90 | premium=R$19,90
+// IA: pro, premium, trial | Bancos: premium (2), trial (1) | Anúncios: somente free
 export function getPlanState(uid) {
   if (!uid) return 'none';
   const plan = localStorage.getItem('finno_plan_' + uid) || 'none';
   const trialStart = localStorage.getItem('finno_trial_start_' + uid);
   if (plan === 'premium') return 'premium';
+  if (plan === 'pro')     return 'pro';
+  if (plan === 'plus')    return 'plus';
   if (plan === 'trial' && trialStart) {
     return (Date.now() - parseInt(trialStart)) / 86400000 <= 7 ? 'trial' : 'expired';
   }
@@ -144,8 +149,21 @@ export function getTrialDaysLeft(uid) {
   return ts ? Math.max(0, Math.ceil(7 - (Date.now() - parseInt(ts)) / 86400000)) : 0;
 }
 
+// Retorna true se o plano inclui IA (insights)
+export function hasAI(state) {
+  return ['pro', 'premium', 'trial'].includes(state);
+}
+
+// Retorna true se o plano inclui conexão bancária
+export function hasBanks(state) {
+  return ['premium', 'trial'].includes(state);
+}
+
+// Retorna o limite de bancos conectados por plano
 export function getBankLimit(state) {
-  return state === 'premium' ? 2 : state === 'trial' ? 1 : 0;
+  if (state === 'premium') return 2;
+  if (state === 'trial')   return 1;
+  return 0;
 }
 
 // ── Pluggy data fetch ─────────────────────────────────────────────
@@ -195,6 +213,9 @@ export function firebaseErrPT(code) {
 }
 
 // Expose plan helpers to window (used by HTML onclick attributes)
-window.getPlanState = getPlanState;
+window.getPlanState  = getPlanState;
+window.hasAI         = hasAI;
+window.hasBanks      = hasBanks;
+window.getBankLimit  = getBankLimit;
 window.getTrialDaysLeft = getTrialDaysLeft;
 window.getBankLimit = getBankLimit;

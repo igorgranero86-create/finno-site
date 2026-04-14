@@ -7,7 +7,7 @@
 import {
   auth, db,
   doc, setDoc,
-  getPlanState, getTrialDaysLeft, getBankLimit,
+  getPlanState, getTrialDaysLeft, getBankLimit, hasAI, hasBanks,
   getPluggyConnectToken
 } from './api.js';
 
@@ -61,7 +61,9 @@ export function loadUserData() {
     const txRaw = localStorage.getItem('finno_tx_' + uid);
     transactions = txRaw ? JSON.parse(txRaw) : [];
     const goalsRaw = localStorage.getItem('finno_goals_' + uid);
-    goals = goalsRaw ? JSON.parse(goalsRaw) : [];
+    const rawGoals = goalsRaw ? JSON.parse(goalsRaw) : [];
+    // Descartar metas do schema antigo (sem campo 'type') — decisão confirmada pelo usuário
+    goals = rawGoals.filter(g => g.type !== undefined);
   } catch(e) {
     transactions = [];
     goals = [];
@@ -186,8 +188,8 @@ export function buildGoals() {
   const newBtn = document.getElementById('btn-new-goal');
   if (!grid) return;
 
-  // Free plan: max 3 goals; premium: unlimited (capped at 20)
-  const limit = currentPlan === 'premium' || currentPlan === 'trial' ? 20 : 3;
+  // Free/Plus: max 3 metas | Pro/Premium/Trial: ilimitado (cap 20)
+  const limit = ['pro','premium','trial'].includes(currentPlan) ? 20 : 3;
 
   if (goals.length === 0) {
     if (limitLabel) limitLabel.textContent = '0 metas';
@@ -213,12 +215,16 @@ export function buildGoals() {
     const pct = Math.min(Math.round((g.current / g.target) * 100), 100);
     const r = 30, circ = 2 * Math.PI * r;
     const dash = (pct / 100) * circ;
-    const deadlineStr = g.deadline ? `<div style="font-size:0.7rem;color:var(--muted);margin-top:4px">📅 ${new Date(g.deadline + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}</div>` : '';
-    const daysLeft = g.deadline ? Math.ceil((new Date(g.deadline + 'T00:00:00') - new Date()) / 86400000) : null;
+    const deadline = g.endDate || g.deadline || null; // suporte ao campo antigo
+    const deadlineStr = deadline ? `<div style="font-size:0.7rem;color:var(--muted);margin-top:4px">📅 ${new Date(deadline + 'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}</div>` : '';
+    const daysLeft = deadline ? Math.ceil((new Date(deadline + 'T00:00:00') - new Date()) / 86400000) : null;
+    const typeLabels = { casamento:'💍 Casamento', viagem:'✈️ Viagem', casa:'🏠 Casa', carro:'🚗 Carro', estudo:'📚 Estudo', outros:'🎯 Outros' };
+    const typeStr = g.type ? `<div style="font-size:0.68rem;color:var(--muted);margin-top:2px">${typeLabels[g.type]||''}</div>` : '';
     const urgency = daysLeft !== null && daysLeft < 30 ? 'var(--warning)' : (g.color || 'var(--accent)');
     return `<div class="goal-card" onclick="openGoalDetail(${i})" style="cursor:pointer;transition:all 0.2s" onmouseover="this.style.borderColor='${g.color||'var(--accent)'}';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform='none'">
       <div class="icon">${g.icon || '🎯'}</div>
       <div class="gname">${g.name}</div>
+      ${typeStr}
       <div class="gtarget">Meta: R$ ${g.target.toLocaleString('pt-BR')}</div>
       ${deadlineStr}
       <div class="goal-ring">
@@ -238,11 +244,11 @@ export function buildGoals() {
     </div>`;
   }).join('');
 
-  if (goals.length >= limit && (currentPlan === 'free' || currentPlan === 'none')) {
-    grid.innerHTML += `<div style="grid-column:1/-1;background:rgba(124,109,250,0.06);border:1px dashed rgba(124,109,250,0.3);border-radius:16px;padding:20px;text-align:center;cursor:pointer" onclick="showUpgrade('Tenha até 20 metas com o Finno Premium por apenas R$ 19,90/mês.')">
+  if (goals.length >= limit && ['free','none','plus'].includes(currentPlan)) {
+    grid.innerHTML += `<div style="grid-column:1/-1;background:rgba(124,109,250,0.06);border:1px dashed rgba(124,109,250,0.3);border-radius:16px;padding:20px;text-align:center;cursor:pointer" onclick="showUpgrade('Metas ilimitadas a partir do plano Pro por R$ 14,90/mês.')">
       <div style="font-size:1.2rem;margin-bottom:8px">🔒</div>
-      <div style="font-size:0.82rem;font-weight:600;margin-bottom:4px">Limite de 3 metas no plano gratuito</div>
-      <div style="font-size:0.75rem;color:var(--muted)">Assine o Premium para metas ilimitadas</div>
+      <div style="font-size:0.82rem;font-weight:600;margin-bottom:4px">Limite de 3 metas nos planos Free e Plus</div>
+      <div style="font-size:0.75rem;color:var(--muted)">Faça upgrade para o Pro e tenha metas ilimitadas</div>
     </div>`;
   }
 }
@@ -253,11 +259,12 @@ export function buildInsights() {
   if (!list) return;
 
   // Free/expired plan: show paywall
-  if (currentPlan === 'free' || currentPlan === 'expired' || currentPlan === 'none') {
+  if (!hasAI(currentPlan)) {
     const ic = document.getElementById('insights-content');
     const pi = document.getElementById('paywall-insights');
     if (ic) ic.style.display = 'none';
-    if (pi) pi.style.display = 'flex';
+    // Garante que o paywall não cubra o tab-bar (pointer-events apenas no conteúdo)
+    if (pi) { pi.style.display = 'flex'; pi.style.pointerEvents = 'none'; }
     return;
   }
 
@@ -398,8 +405,9 @@ export function openAddTx() {
 window.openAddTx = openAddTx;
 
 export function openGoalModal() {
-  if ((currentPlan === 'free' || currentPlan === 'none') && goals.length >= 3) {
-    showUpgrade('Desbloqueie metas ilimitadas com o Finno Premium por apenas R$ 19,90/mês.');
+  const freePlans = ['free', 'none', 'plus'];
+  if (freePlans.includes(currentPlan) && goals.length >= 3) {
+    showUpgrade('Desbloqueie metas ilimitadas a partir do plano Pro por R$ 14,90/mês.');
     return;
   }
   const modal = document.getElementById('modal-goal');
@@ -433,22 +441,30 @@ export function addTransaction() {
 }
 window.addTransaction = addTransaction;
 
+// Ícones padrão por tipo de meta
+const GOAL_ICONS = { casamento:'💍', viagem:'✈️', casa:'🏠', carro:'🚗', estudo:'📚', outros:'🎯' };
+
 export function addGoal() {
-  const name = document.getElementById('goal-name').value.trim();
-  const target = parseFloat(document.getElementById('goal-target').value);
+  const name    = document.getElementById('goal-name').value.trim();
+  const target  = parseFloat(document.getElementById('goal-target').value);
   const current = parseFloat(document.getElementById('goal-current').value) || 0;
-  const icon = document.getElementById('goal-icon').value || '🎯';
-  if (!name) { toast('Informe o nome da meta.', 'error'); return; }
+  const type    = document.getElementById('goal-type')?.value || 'outros';
+  const endDate = document.getElementById('goal-end-date')?.value || '';
+
+  if (!name)                  { toast('Informe o nome da meta.', 'error'); return; }
   if (!target || target <= 0) { toast('Informe um valor alvo válido.', 'error'); return; }
+
   const colors = ['#7c6dfa','#6dfac8','#fa6d9a','#fbbf24','#818cf8'];
-  goals.push({ name, icon, target, current, color: colors[goals.length % colors.length] });
+  const icon   = GOAL_ICONS[type] || '🎯';
+
+  goals.push({ name, icon, type, target, current, endDate, createdAt: Date.now(), color: colors[goals.length % colors.length] });
   saveGoals();
   buildGoals();
   closeModal('modal-goal');
-  document.getElementById('goal-name').value = '';
-  document.getElementById('goal-target').value = '';
-  document.getElementById('goal-current').value = '';
-  document.getElementById('goal-icon').value = '';
+  // Limpar campos
+  ['goal-name','goal-target','goal-current'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  const typeEl = document.getElementById('goal-type'); if(typeEl) typeEl.value='outros';
+  const dateEl = document.getElementById('goal-end-date'); if(dateEl) dateEl.value='';
   toast('Meta criada! ✓', 'success');
 }
 window.addGoal = addGoal;
@@ -768,7 +784,7 @@ export function skipToFree() {
 window.skipToFree = skipToFree;
 
 export function choosePlan(plan) {
-  if (plan === 'premium') { showPremiumPayment(); return; }
+  if (['plus','pro','premium'].includes(plan)) { showPlanPayment(plan); return; }
   const uid = auth.currentUser?.uid;
   if (uid) { localStorage.setItem('finno_plan_'+uid,'free'); localStorage.setItem('finno_setup_'+uid,'1'); }
   currentPlan = 'free';
@@ -777,29 +793,56 @@ export function choosePlan(plan) {
 }
 window.choosePlan = choosePlan;
 
-export function showPremiumPayment() {
+// Mapa de planos pagos: id → { label, price, emoji, tagline, features }
+const PLAN_DEFS = {
+  plus:    { label:'Finno Plus',    price:'R$ 9,90',  emoji:'✨', tagline:'Sem distrações, foco total',              features:['Sem anúncios no app','Todas as categorias','Metas financeiras (até 3)','Interface limpa premium','Suporte por e-mail'] },
+  pro:     { label:'Finno Pro',     price:'R$ 14,90', emoji:'🤖', tagline:'Insights automáticos para economizar mais', features:['Tudo do Plus','IA financeira personalizada','Metas ilimitadas','Relatórios e exportação PDF','Alertas de gastos','Suporte prioritário'] },
+  premium: { label:'Finno Premium', price:'R$ 19,90', emoji:'🏦', tagline:'Suas finanças no automático',              features:['Tudo do Pro','Conexão com +200 bancos','Sincronização automática','Até 2 contas bancárias','7 dias grátis para testar'] },
+};
+
+export function showPlanPayment(planId) {
+  const p = PLAN_DEFS[planId] || PLAN_DEFS.premium;
+  const hasTrial = planId === 'premium';
   const existing = document.getElementById('payment-overlay');
   if (existing) existing.remove();
   const overlay = document.createElement('div');
   overlay.id = 'payment-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
-  overlay.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:32px 28px;max-width:420px;width:100%;box-shadow:0 40px 80px rgba(0,0,0,0.6)">
-    <div style="text-align:center;margin-bottom:24px"><div style="font-size:2.5rem;margin-bottom:10px">⭐</div><div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.3rem;margin-bottom:6px">Finno Premium</div><div style="font-family:Syne,sans-serif;font-weight:800;font-size:2rem;margin-bottom:4px">R$ 19,90<span style="font-size:1rem;font-weight:400;color:var(--muted)">/mês</span></div><div style="font-size:0.78rem;color:var(--success)">✓ 7 dias grátis · Conecte até 2 bancos · Cancele quando quiser</div></div>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
-      <div style="display:flex;align-items:center;gap:10px;font-size:0.82rem"><span>✅</span>Conexão automática com +200 bancos</div>
-      <div style="display:flex;align-items:center;gap:10px;font-size:0.82rem"><span>✅</span>Insights com IA personalizados</div>
-      <div style="display:flex;align-items:center;gap:10px;font-size:0.82rem"><span>✅</span>Metas financeiras ilimitadas</div>
-      <div style="display:flex;align-items:center;gap:10px;font-size:0.82rem"><span>✅</span>Relatórios avançados</div>
+  overlay.dataset.plan = planId;
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
+  overlay.innerHTML = `
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:32px 28px;max-width:420px;width:100%;box-shadow:0 40px 80px rgba(0,0,0,0.6)">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#a020e0);display:flex;align-items:center;justify-content:center;font-size:1.6rem;margin:0 auto 12px">${p.emoji}</div>
+      <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.2rem;margin-bottom:4px">${p.label}</div>
+      <div style="font-family:Syne,sans-serif;font-weight:800;font-size:2.2rem;margin-bottom:2px">${p.price}<span style="font-size:0.9rem;font-weight:400;color:var(--muted)">/mês</span></div>
+      <div style="font-size:0.78rem;color:var(--muted);font-style:italic;margin-bottom:6px">${p.tagline}</div>
+      ${hasTrial ? '<div style="font-size:0.78rem;color:var(--success)">✓ 7 dias completamente grátis · cancele quando quiser</div>' : '<div style="font-size:0.76rem;color:var(--muted)">Você não será cobrado antes de confirmar</div>'}
     </div>
-    <div style="background:var(--surface2);border-radius:16px;padding:18px;margin-bottom:18px"><div style="font-size:0.72rem;color:var(--muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px">Dados do cartão</div><input placeholder="Número do cartão" id="card-number" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none;margin-bottom:10px" maxlength="19" oninput="formatCard(this)"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px"><input placeholder="MM/AA" id="card-expiry" style="background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none" maxlength="5" oninput="formatExpiry(this)"><input placeholder="CVV" id="card-cvv" style="background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none" maxlength="3" type="password"></div><input placeholder="Nome no cartão" id="card-name" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none"></div>
+    <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:20px;background:var(--surface2);border-radius:14px;padding:16px">
+      ${p.features.map(f=>`<div style="display:flex;align-items:center;gap:10px;font-size:0.82rem"><span style="color:var(--success)">✓</span>${f}</div>`).join('')}
+    </div>
+    <div style="background:var(--surface2);border-radius:16px;padding:18px;margin-bottom:16px">
+      <div style="font-size:0.72rem;color:var(--muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px">Dados do cartão</div>
+      <input placeholder="Número do cartão" id="card-number" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none;margin-bottom:10px;box-sizing:border-box" maxlength="19" oninput="formatCard(this)" autocomplete="cc-number">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <input placeholder="MM/AA" id="card-expiry" style="background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none" maxlength="5" oninput="formatExpiry(this)" autocomplete="cc-exp">
+        <input placeholder="CVV" id="card-cvv" style="background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none" maxlength="3" type="password" autocomplete="cc-csc">
+      </div>
+      <input placeholder="Nome no cartão" id="card-name" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none;box-sizing:border-box" autocomplete="cc-name">
+    </div>
+    ${hasTrial ? '<div style="background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.18);border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:0.78rem;color:var(--success);text-align:center">🛡️ <strong>Você não será cobrado agora.</strong> A cobrança de R$ 19,90/mês começa após 7 dias.</div>' : ''}
     <div id="payment-error" style="display:none;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);border-radius:10px;padding:10px 14px;font-size:0.8rem;color:var(--danger);margin-bottom:12px;text-align:center"></div>
-    <button id="pay-btn" onclick="processPayment()" style="width:100%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;border:none;border-radius:12px;padding:15px;font-family:Syne,sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;margin-bottom:10px">🔒 Assinar por R$ 19,90/mês</button>
+    <button id="pay-btn" onclick="processPayment()" style="width:100%;background:linear-gradient(135deg,var(--accent),#a020e0);color:white;border:none;border-radius:12px;padding:15px;font-family:Syne,sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;margin-bottom:10px;box-shadow:0 8px 24px rgba(130,10,209,0.35)">
+      🔒 ${hasTrial ? 'Testar grátis por 7 dias →' : `Assinar ${p.label} →`}
+    </button>
     <button onclick="document.getElementById('payment-overlay').remove()" style="width:100%;background:none;border:none;color:var(--muted);padding:10px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.82rem">Cancelar</button>
-    <div style="text-align:center;font-size:0.7rem;color:var(--muted);margin-top:10px">🔒 Pagamento seguro · SSL · Cancele a qualquer momento</div>
+    <div style="text-align:center;font-size:0.68rem;color:var(--muted);margin-top:10px">🔒 Pagamento seguro · SSL · BCB · Cancele a qualquer momento</div>
   </div>`;
   document.body.appendChild(overlay);
 }
-window.showPremiumPayment = showPremiumPayment;
+window.showPlanPayment = showPlanPayment;
+// Alias retrocompatível para qualquer onclick="showPremiumPayment()" remanescente no HTML
+window.showPremiumPayment = () => showPlanPayment('premium');
 
 function formatCard(input) {
   let v = input.value.replace(/\D/g,'').slice(0,16);
@@ -818,24 +861,42 @@ window.formatExpiry = formatExpiry;
 export function processPayment() {
   const number = document.getElementById('card-number')?.value.replace(/\s/g,'');
   const expiry = document.getElementById('card-expiry')?.value;
-  const cvv = document.getElementById('card-cvv')?.value;
-  const name = document.getElementById('card-name')?.value.trim();
-  const errEl = document.getElementById('payment-error');
+  const cvv    = document.getElementById('card-cvv')?.value;
+  const name   = document.getElementById('card-name')?.value.trim();
+  const errEl  = document.getElementById('payment-error');
   if (!number||number.length<13){errEl.textContent='Número inválido.';errEl.style.display='block';return;}
   if (!expiry||expiry.length<5){errEl.textContent='Validade inválida.';errEl.style.display='block';return;}
   if (!cvv||cvv.length<3){errEl.textContent='CVV inválido.';errEl.style.display='block';return;}
   if (!name){errEl.textContent='Informe o nome no cartão.';errEl.style.display='block';return;}
   errEl.style.display='none';
-  const btn=document.getElementById('pay-btn'); btn.disabled=true; btn.textContent='⏳ Processando...';
-  setTimeout(()=>{
-    const uid=auth.currentUser?.uid;
-    if(uid){localStorage.setItem('finno_plan_'+uid,'premium');localStorage.setItem('finno_setup_'+uid,'1');}
-    currentPlan='premium'; document.getElementById('payment-overlay')?.remove();
-    toast('✓ Premium ativado! Bem-vindo ao Finno Premium 🚀','success');
-    const screen=document.querySelector('.screen.active')?.id;
-    if(screen==='screen-connect'||screen==='screen-plan') showConnectState('premium',uid);
-    else applyPlanUI('premium');
-  },2200);
+
+  // Descobre qual plano está sendo contratado a partir do overlay
+  const planId = document.getElementById('payment-overlay')?.dataset.plan || 'premium';
+  const planDef = PLAN_DEFS[planId] || PLAN_DEFS.premium;
+  const hasTrial = planId === 'premium';
+
+  const btn = document.getElementById('pay-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Processando...';
+
+  setTimeout(() => {
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      localStorage.setItem('finno_plan_'+uid, planId);
+      localStorage.setItem('finno_setup_'+uid, '1');
+      if (hasTrial) {
+        localStorage.setItem('finno_trial_start_'+uid, Date.now().toString());
+        localStorage.setItem('finno_plan_'+uid, 'trial');
+      }
+    }
+    const activePlan = hasTrial ? 'trial' : planId;
+    currentPlan = activePlan;
+    document.getElementById('payment-overlay')?.remove();
+    toast(`✓ ${planDef.label} ativado! Bem-vindo 🚀`, 'success');
+    const screen = document.querySelector('.screen.active')?.id;
+    if (screen === 'screen-connect' || screen === 'screen-plan') showConnectState(activePlan, uid);
+    else applyPlanUI(activePlan);
+  }, 2200);
 }
 window.processPayment = processPayment;
 window.simulatePayment = processPayment;
@@ -843,42 +904,61 @@ window.simulatePayment = processPayment;
 export function applyPlanUI(plan) {
   currentPlan = plan;
 
-  // Insights paywall
+  // Insights paywall (free, plus, expired, none)
   const pi = document.getElementById('paywall-insights');
   const ic = document.getElementById('insights-content');
-  const isFree = plan === 'free' || plan === 'expired' || plan === 'none';
-  if (pi) pi.style.display = isFree ? 'flex' : 'none';
-  if (ic) ic.style.display = isFree ? 'none' : 'block';
+  const noAI = !hasAI(plan);
+  if (pi) { pi.style.display = noAI ? 'flex' : 'none'; pi.style.pointerEvents = noAI ? 'none' : ''; }
+  if (ic) ic.style.display = noAI ? 'none' : 'block';
 
-  // Nav sync bar
+  // Nav sync bar (somente premium e trial têm banco conectado)
   const sync = document.querySelector('.nav-sync');
-  if (sync) sync.style.display = ['premium','trial'].includes(plan) ? 'flex' : 'none';
+  if (sync) sync.style.display = hasBanks(plan) ? 'flex' : 'none';
 
-  // Avatar premium indicator
+  // Banner de anúncios (apenas plano free)
+  const adBanner = document.getElementById('ad-banner');
+  if (adBanner) adBanner.style.display = (plan === 'free' || plan === 'none') ? 'flex' : 'none';
+
+  // Avatar: cor por plano
   const avatar = document.getElementById('nav-avatar');
-  if (avatar && plan === 'premium') {
-    avatar.style.background = 'linear-gradient(135deg,#7c6dfa,#fa6d9a)';
-    avatar.title = 'Conta Premium ⭐';
+  if (avatar) {
+    const gradients = {
+      premium: 'linear-gradient(135deg,#7c6dfa,#fa6d9a)',
+      trial:   'linear-gradient(135deg,#6dfac8,#7c6dfa)',
+      pro:     'linear-gradient(135deg,#7c6dfa,#6090ff)',
+      plus:    'linear-gradient(135deg,#4a9af5,#7c6dfa)',
+    };
+    if (gradients[plan]) { avatar.style.background = gradients[plan]; }
+    const titles = { premium:'Premium ⭐', trial:'Trial ativo 🔬', pro:'Pro 🤖', plus:'Plus ✨', free:'Gratuito', none:'Gratuito' };
+    avatar.title = 'Finno ' + (titles[plan] || 'Gratuito');
   }
 
-  // Plan badge in account modal
+  // Badge de plano no modal de conta
   const badge = document.getElementById('menu-plan-badge');
   if (badge) {
-    const labels = { premium:'⭐ Premium', trial:'🔬 Trial ativo', free:'🆓 Gratuito', expired:'⚠️ Trial expirado', none:'🆓 Gratuito' };
+    const labels = { premium:'🏦 Premium', pro:'🤖 Pro', plus:'✨ Plus', trial:'🔬 Trial ativo', free:'🆓 Gratuito', expired:'⚠️ Trial expirado', none:'🆓 Gratuito' };
+    const isPaid = ['premium','pro','plus','trial'].includes(plan);
     badge.textContent = labels[plan] || '🆓 Gratuito';
-    badge.style.color = plan === 'premium' ? 'var(--accent)' : 'var(--muted)';
-    badge.style.background = plan === 'premium' ? 'rgba(124,109,250,0.15)' : 'rgba(255,255,255,0.06)';
+    badge.style.color     = isPaid ? 'var(--accent)' : 'var(--muted)';
+    badge.style.background = isPaid ? 'rgba(124,109,250,0.15)' : 'rgba(255,255,255,0.06)';
   }
 
-  // Plan section in account modal
+  // Seção de plano no modal de conta
   const fs = document.getElementById('plan-section-free');
   const ps = document.getElementById('plan-section-premium');
-  if (fs) fs.style.display = plan === 'premium' ? 'none' : 'block';
-  if (ps) ps.style.display = plan === 'premium' ? 'block' : 'none';
+  const isPaid = ['premium','pro','plus','trial'].includes(plan);
+  if (fs) fs.style.display = isPaid ? 'none' : 'block';
+  if (ps) ps.style.display = isPaid ? 'block' : 'none';
 
-  // Rebuild goals to reflect plan limits
+  // Atualizar texto do plano ativo no modal
+  const planNameEl = document.getElementById('active-plan-name');
+  if (planNameEl) {
+    const names = { premium:'Finno Premium', pro:'Finno Pro', plus:'Finno Plus', trial:'Trial Premium' };
+    planNameEl.textContent = names[plan] || '';
+  }
+
+  // Reconstruir UI dependente do plano
   buildGoals();
-  // Rebuild insights to respect plan
   buildInsights();
 }
 window.applyPlanUI = applyPlanUI;
@@ -939,13 +1019,13 @@ export async function openPluggyConnect() {
   const limit = getBankLimit(state);
   const ci = window.connectedItems || [];
 
-  if (state === 'none' || state === 'free') {
+  if (!hasBanks(state)) {
     showScreen('screen-connect'); showConnectState(state, uid);
-    toast('Ative o trial para conectar seu banco.','error'); return;
+    toast('Conexão bancária disponível apenas no plano Premium.','error'); return;
   }
   if (state === 'expired') { showScreen('screen-connect'); showConnectState('expired', uid); return; }
   if (ci.length >= limit) {
-    toast(state==='trial'?'Limite de 1 banco no trial. Assine o Premium para mais.':'Limite de 2 bancos atingido.','error');
+    toast(state==='trial'?'Limite de 1 banco no trial. Assine o Premium para conectar até 2.':'Limite de 2 bancos atingido.','error');
     if (state==='trial') { const n=document.getElementById('trial-limit-notice'); if(n) n.style.display='block'; }
     return;
   }
@@ -1221,29 +1301,32 @@ export function buildHomeInsights() {
   const el = document.getElementById('home-insights-chips');
   if (!el) return;
 
-  // Free/none/expired: teaser + CTA de conversão forte
-  if (currentPlan === 'free' || currentPlan === 'none' || currentPlan === 'expired') {
+  // Sem IA (free, plus, none, expired): teaser + CTA de conversão
+  if (!hasAI(currentPlan)) {
+    const isPlusMsg = currentPlan === 'plus'
+      ? 'Você já tem o Plus! Faça upgrade para o Pro por R$ 14,90/mês e ative a IA financeira.'
+      : 'Usuários Pro economizam em média R$ 580/mês ao identificar gastos desnecessários com IA.';
     el.innerHTML = `
-      <div class="home-insight-chip" onclick="showUpgrade('Desbloqueie insights personalizados com IA — Finno Premium por R$ 19,90/mês.')" style="cursor:pointer">
+      <div class="home-insight-chip" onclick="showUpgrade('${isPlusMsg}')" style="cursor:pointer">
         <div class="home-insight-icon" style="background:rgba(130,10,209,0.15)">🤖</div>
         <div class="home-insight-text">
           <strong>Suas finanças têm padrões ocultos.</strong> A IA do Finno identifica onde você perde dinheiro sem perceber.
         </div>
         <div class="home-insight-arrow">›</div>
       </div>
-      <div onclick="showUpgrade('Usuários Premium economizam em média R$ 580/mês ao identificar gastos desnecessários com IA.')"
+      <div onclick="showUpgrade('${isPlusMsg}')"
            style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,rgba(130,10,209,0.1),rgba(160,32,224,0.06));border:1px solid rgba(130,10,209,0.25);border-radius:16px;cursor:pointer">
         <div style="font-size:1.5rem;flex-shrink:0">🔒</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:0.83rem;font-weight:700;color:var(--text);margin-bottom:2px">Desbloqueie insights com IA</div>
           <div style="font-size:0.73rem;color:var(--muted);line-height:1.4">Média de R$ 580/mês economizados · alertas · taxa de poupança</div>
         </div>
-        <div style="background:linear-gradient(135deg,var(--accent),#a020e0);color:white;padding:6px 12px;border-radius:9px;font-size:0.72rem;font-weight:700;white-space:nowrap;flex-shrink:0;box-shadow:0 4px 12px rgba(130,10,209,0.35)">7 dias grátis</div>
+        <div style="background:linear-gradient(135deg,var(--accent),#a020e0);color:white;padding:6px 12px;border-radius:9px;font-size:0.72rem;font-weight:700;white-space:nowrap;flex-shrink:0;box-shadow:0 4px 12px rgba(130,10,209,0.35)">Ver planos</div>
       </div>`;
     return;
   }
 
-  // Premium/trial: show insights or empty state
+  // Pro/Premium/trial: mostrar insights reais ou empty state
   if (transactions.length === 0) {
     el.innerHTML = `<div class="home-insight-chip"><div class="home-insight-icon" style="background:rgba(130,10,209,0.12)">💡</div><div class="home-insight-text"><strong>Adicione transações</strong> para receber insights personalizados sobre seus gastos.</div></div>`;
     return;
@@ -1262,7 +1345,7 @@ export function updateHomePlanUI() {
   const accsEl = document.getElementById('home-accounts-section');
   const syncEl = document.getElementById('home-sync-text');
 
-  if (state === 'premium' || state === 'trial') {
+  if (hasBanks(state)) {
     if (ctaEl) ctaEl.style.display = 'none';
     if (accsEl) accsEl.style.display = 'block';
     if (syncEl) syncEl.textContent = 'Atualizado automaticamente';
@@ -1270,7 +1353,8 @@ export function updateHomePlanUI() {
   } else {
     if (ctaEl) ctaEl.style.display = 'block';
     if (accsEl) accsEl.style.display = 'none';
-    if (syncEl) syncEl.textContent = transactions.length > 0 ? 'Dados inseridos manualmente' : 'Conecte seu banco para sincronizar';
+    const manualText = transactions.length > 0 ? 'Dados inseridos manualmente' : 'Conecte seu banco para sincronizar';
+    if (syncEl) syncEl.textContent = state === 'pro' ? 'IA ativa · dados inseridos manualmente' : manualText;
   }
 }
 window.updateHomePlanUI = updateHomePlanUI;

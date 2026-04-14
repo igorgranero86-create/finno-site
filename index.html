@@ -435,48 +435,86 @@
 
 
 <!-- ===== SCREEN 0C: CHOOSE PLAN ===== -->
-<div id="screen-plan" class="screen">
+<div id="screen-plan" class="screen" style="overflow-y:auto;padding-bottom:32px">
   <div class="plan-header">
     <div class="splash-logo" style="font-size:1.6rem;margin-bottom:8px">finno</div>
-    <h2>Desbloqueie o controle total</h2>
-    <p>Usuários Premium economizam em média <strong style="color:var(--accent)">R$ 580/mês</strong> ao identificar gastos desnecessários.</p>
+    <h2 style="font-size:1.3rem;margin-bottom:6px">Escolha o controle ideal para suas finanças</h2>
+    <p style="font-size:0.82rem;color:var(--muted)">Comece grátis e evolua para o automático total</p>
   </div>
-  <div class="plans-wrap">
+  <div class="plans-wrap" style="display:flex;flex-direction:column;gap:14px;padding:0 16px">
+
+    <!-- PLUS -->
+    <div class="plan-card" onclick="choosePlan('plus')" style="border:1px solid var(--border)">
+      <div class="plan-icon">✨</div>
+      <div class="plan-name">Finno Plus</div>
+      <div class="plan-price">R$ 9,90 <span>/mês</span></div>
+      <div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-bottom:12px;font-style:italic">Sem distrações, foco total</div>
+      <div class="plan-features">
+        <div class="plan-feature"><span class="fi">✅</span> Sem anúncios no app</div>
+        <div class="plan-feature"><span class="fi">✅</span> Interface limpa premium</div>
+        <div class="plan-feature"><span class="fi">✅</span> Todas as categorias e filtros</div>
+        <div class="plan-feature"><span class="fi">✅</span> Até 3 metas financeiras</div>
+        <div class="plan-feature locked"><span class="fi">🔒</span> IA financeira (bloqueada)</div>
+        <div class="plan-feature locked"><span class="fi">🔒</span> Bancos conectados (bloqueado)</div>
+      </div>
+      <button class="plan-btn" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--text)">Assinar Plus →</button>
+    </div>
+
+    <!-- PRO — destaque "Mais popular" -->
+    <div class="plan-card pro-card" onclick="choosePlan('pro')" style="border:2px solid var(--accent);position:relative">
+      <div class="plan-badge" style="background:linear-gradient(135deg,var(--accent),#a020e0)">🔥 MAIS POPULAR</div>
+      <div class="plan-icon">🤖</div>
+      <div class="plan-name">Finno Pro</div>
+      <div class="plan-price">R$ 14,90 <span>/mês</span></div>
+      <div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-bottom:12px;font-style:italic">Insights automáticos para economizar mais</div>
+      <div class="plan-features">
+        <div class="plan-feature"><span class="fi">✅</span> Tudo do Plus</div>
+        <div class="plan-feature"><span class="fi">🤖</span> IA financeira personalizada</div>
+        <div class="plan-feature"><span class="fi">🎯</span> Metas ilimitadas</div>
+        <div class="plan-feature"><span class="fi">📊</span> Relatórios e exportação PDF</div>
+        <div class="plan-feature"><span class="fi">🔔</span> Alertas de gastos automáticos</div>
+        <div class="plan-feature locked"><span class="fi">🔒</span> Conexão bancária (bloqueada)</div>
+      </div>
+      <button class="plan-btn premium-btn">Assinar Pro →</button>
+      <div style="text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.35);margin-top:6px">= R$ 0,49/dia · cancele quando quiser</div>
+    </div>
+
+    <!-- PREMIUM -->
     <div class="plan-card premium" onclick="choosePlan('premium')">
-      <div class="plan-badge">🔥 MAIS POPULAR — 7 DIAS GRÁTIS</div>
-      <div class="plan-icon">⭐</div>
+      <div class="plan-badge" style="background:linear-gradient(135deg,#1a1040,#3a1060);border:1px solid rgba(255,255,255,0.15)">🏦 COMPLETO — 7 DIAS GRÁTIS</div>
+      <div class="plan-icon">🏦</div>
       <div class="plan-name">Finno Premium</div>
       <div class="plan-price">R$ 19,90 <span>/mês</span></div>
-      <div style="font-size:0.75rem;color:rgba(255,255,255,0.45);margin-bottom:14px">= R$ 0,66/dia · cancele quando quiser</div>
+      <div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-bottom:12px;font-style:italic">Suas finanças no automático</div>
       <div class="plan-features">
-        <div class="plan-feature"><span class="fi">🏦</span> Conexão automática com +200 bancos</div>
-        <div class="plan-feature"><span class="fi">🔄</span> Importação automática de transações</div>
-        <div class="plan-feature"><span class="fi">🤖</span> Insights com IA personalizados</div>
-        <div class="plan-feature"><span class="fi">🎯</span> Metas financeiras ilimitadas</div>
-        <div class="plan-feature"><span class="fi">📊</span> Relatórios e exportação em PDF</div>
-        <div class="plan-feature"><span class="fi">🔔</span> Alertas de gastos em tempo real</div>
+        <div class="plan-feature"><span class="fi">✅</span> Tudo do Pro</div>
+        <div class="plan-feature"><span class="fi">🏦</span> Conexão com +200 bancos via Open Finance</div>
+        <div class="plan-feature"><span class="fi">🔄</span> Sincronização automática 24h</div>
+        <div class="plan-feature"><span class="fi">💳</span> Até 2 contas bancárias simultâneas</div>
         <div class="plan-feature"><span class="fi">⚡</span> Suporte prioritário 24h</div>
       </div>
       <button class="plan-btn premium-btn">🚀 Testar grátis por 7 dias →</button>
-      <div style="text-align:center;font-size:0.72rem;color:rgba(255,255,255,0.35);margin-top:8px">Sem cobranças durante o trial</div>
+      <div style="text-align:center;font-size:0.72rem;color:rgba(255,255,255,0.35);margin-top:6px">Sem cobranças durante o trial · = R$ 0,66/dia</div>
     </div>
-    <div class="plan-card" onclick="choosePlan('free')">
+
+    <!-- FREE -->
+    <div class="plan-card" onclick="choosePlan('free')" style="border:1px solid rgba(255,255,255,0.06);opacity:0.85">
       <div class="plan-icon">🆓</div>
       <div class="plan-name">Plano Gratuito</div>
       <div class="plan-price">R$ 0 <span>/sempre</span></div>
       <div class="plan-features">
-        <div class="plan-feature"><span class="fi">✅</span> Lançamento manual de gastos</div>
+        <div class="plan-feature"><span class="fi">✅</span> Lançamentos manuais</div>
         <div class="plan-feature"><span class="fi">✅</span> Até 3 metas financeiras</div>
-        <div class="plan-feature"><span class="fi">✅</span> Categorias básicas</div>
-        <div class="plan-feature locked"><span class="fi">🔒</span> Bancos conectados automaticamente</div>
-        <div class="plan-feature locked"><span class="fi">🔒</span> Insights com IA (bloqueado)</div>
-        <div class="plan-feature locked"><span class="fi">🔒</span> Relatórios avançados (bloqueado)</div>
+        <div class="plan-feature"><span class="fi">✅</span> Categorias e relatório básico</div>
+        <div class="plan-feature locked"><span class="fi">📢</span> Com anúncios</div>
+        <div class="plan-feature locked"><span class="fi">🔒</span> IA, bancos e automação bloqueados</div>
       </div>
-      <button class="plan-btn free">Continuar sem Premium</button>
+      <button class="plan-btn free" style="opacity:0.7">Continuar sem assinar</button>
     </div>
+
   </div>
-  <div style="text-align:center;margin-top:20px;font-size:0.75rem;color:var(--muted);line-height:1.8">
-    🔒 Pagamento seguro · Cancele a qualquer momento sem multa<br>Processado com criptografia SSL · Open Finance regulado pelo BCB
+  <div style="text-align:center;margin-top:20px;padding:0 16px;font-size:0.72rem;color:var(--muted);line-height:1.9">
+    🔒 Pagamento seguro · Cancele a qualquer momento sem multa<br>Criptografia SSL · Open Finance regulado pelo BCB
   </div>
 </div>
 
@@ -665,6 +703,13 @@
     </div>
   </div>
 
+  <!-- Banner de anúncios — visível apenas no plano Free -->
+  <div id="ad-banner" style="display:none;align-items:center;gap:10px;padding:8px 16px;background:rgba(251,191,36,0.06);border-bottom:1px solid rgba(251,191,36,0.15);cursor:pointer" onclick="showUpgrade('Remova os anúncios com o Finno Plus por apenas R$ 9,90/mês.')">
+    <span style="font-size:0.75rem">📢</span>
+    <span style="font-size:0.73rem;color:rgba(251,191,36,0.8);flex:1">Anúncio · Banco Inter — Conta digital gratuita com rendimento automático</span>
+    <span style="font-size:0.65rem;background:rgba(251,191,36,0.12);color:rgba(251,191,36,0.7);padding:2px 8px;border-radius:6px;white-space:nowrap">Remover ✕</span>
+  </div>
+
   <div class="tabs">
     <div class="tab active" onclick="switchTab('visao-geral')">Visão Geral</div>
     <div class="tab" onclick="switchTab('transacoes')">Extrato</div>
@@ -759,11 +804,17 @@
           </select>
           <select id="filter-cat" onchange="applyFilters()" style="flex:1;min-width:140px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.82rem;outline:none">
             <option value="all">Todas categorias</option>
-            <option value="🛒 Alimentação">Alimentação</option><option value="🚗 Transporte">Transporte</option>
-            <option value="🏠 Moradia">Moradia</option><option value="💊 Saúde">Saúde</option>
-            <option value="🎮 Lazer">Lazer</option><option value="👗 Compras">Compras</option>
-            <option value="📱 Assinaturas">Assinaturas</option><option value="💰 Salário">Salário</option>
+            <option value="🛒 Alimentação">Alimentação</option>
+            <option value="📱 Assinaturas">Assinaturas</option>
+            <option value="👗 Compras">Compras</option>
+            <option value="📚 Estudos">Estudos</option>
             <option value="📈 Investimento">Investimento</option>
+            <option value="🎮 Lazer">Lazer</option>
+            <option value="🏠 Moradia">Moradia</option>
+            <option value="🔧 Outros">Outros</option>
+            <option value="💰 Salário">Salário</option>
+            <option value="💊 Saúde">Saúde</option>
+            <option value="🚗 Transporte">Transporte</option>
           </select>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -890,17 +941,20 @@
         </div>
         <div id="insights-list"></div>
       </div>
-      <div class="paywall-overlay" id="paywall-insights" style="display:none;flex-direction:column">
-        <div class="paywall-icon">🤖</div>
-        <div class="paywall-title">Insights com IA bloqueados</div>
-        <div class="paywall-sub">Usuários Premium identificam e cortam em média <strong style="color:var(--text)">R$ 580/mês</strong> em gastos que passariam despercebidos.</div>
-        <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:300px;margin:0 auto 20px">
-          <div style="font-size:0.78rem;color:rgba(255,255,255,0.55);display:flex;gap:8px;align-items:center;text-align:left"><span>📊</span> Análise automática de todos os seus gastos</div>
-          <div style="font-size:0.78rem;color:rgba(255,255,255,0.55);display:flex;gap:8px;align-items:center;text-align:left"><span>🎯</span> Sugestões personalizadas para economizar</div>
-          <div style="font-size:0.78rem;color:rgba(255,255,255,0.55);display:flex;gap:8px;align-items:center;text-align:left"><span>🔔</span> Alertas de gastos em tempo real</div>
+      <!-- pointer-events:none no container para não bloquear tabs/nav; auto nos filhos clicáveis -->
+      <div class="paywall-overlay" id="paywall-insights" style="display:none;flex-direction:column;pointer-events:none">
+        <div style="pointer-events:auto;display:flex;flex-direction:column;align-items:center;text-align:center;padding:32px 24px;width:100%">
+          <div class="paywall-icon">🤖</div>
+          <div class="paywall-title">Insights com IA disponíveis no Pro</div>
+          <div class="paywall-sub">Usuários Pro identificam e cortam em média <strong style="color:var(--text)">R$ 580/mês</strong> em gastos que passariam despercebidos.</div>
+          <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:300px;margin:0 auto 20px">
+            <div style="font-size:0.78rem;color:rgba(255,255,255,0.55);display:flex;gap:8px;align-items:center;text-align:left"><span>📊</span> Análise automática de todos os seus gastos</div>
+            <div style="font-size:0.78rem;color:rgba(255,255,255,0.55);display:flex;gap:8px;align-items:center;text-align:left"><span>🎯</span> Sugestões personalizadas para economizar</div>
+            <div style="font-size:0.78rem;color:rgba(255,255,255,0.55);display:flex;gap:8px;align-items:center;text-align:left"><span>🔔</span> Alertas de gastos em tempo real</div>
+          </div>
+          <button class="paywall-btn" onclick="showUpgrade('Desbloqueie insights com IA a partir do Finno Pro por R$ 14,90/mês.')">🚀 Ver planos →</button>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:8px">Pro a partir de R$ 14,90 · Premium com trial 7 dias grátis</div>
         </div>
-        <button class="paywall-btn" onclick="showUpgrade('Desbloqueie insights com IA com o Finno Premium por apenas R$ 19,90/mês.')">🚀 Testar grátis por 7 dias →</button>
-        <div style="font-size:0.72rem;color:var(--muted);margin-top:8px">Sem cobranças durante o trial · cancele quando quiser</div>
       </div>
     </div>
 
@@ -926,15 +980,23 @@
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">Adicionar transação</div>
-    <div class="form-group"><label>Tipo</label><select id="tx-type"><option>Gasto</option><option>Receita</option><option>Transferência</option></select></div>
+    <div class="form-group"><label>Tipo</label><select id="tx-type"><option>Gasto</option><option>Receita</option></select></div>
     <div class="form-group"><label>Descrição</label><input type="text" id="tx-desc" placeholder="Ex: Supermercado Pão de Açúcar"></div>
     <div class="form-group"><label>Valor (R$)</label><input type="number" id="tx-val" placeholder="0,00" step="0.01"></div>
     <div class="form-group">
       <label>Categoria</label>
       <select id="tx-cat">
-        <option>🛒 Alimentação</option><option>🚗 Transporte</option><option>🏠 Moradia</option>
-        <option>💊 Saúde</option><option>🎮 Lazer</option><option>👗 Compras</option>
-        <option>📱 Assinaturas</option><option>💰 Salário</option><option>📈 Investimento</option><option>🔧 Outros</option>
+        <option>🛒 Alimentação</option>
+        <option>📱 Assinaturas</option>
+        <option>👗 Compras</option>
+        <option>📚 Estudos</option>
+        <option>🎮 Lazer</option>
+        <option>🏠 Moradia</option>
+        <option>💊 Saúde</option>
+        <option>🚗 Transporte</option>
+        <option>💰 Salário</option>
+        <option>📈 Investimento</option>
+        <option>🔧 Outros</option>
       </select>
     </div>
     <button class="btn-primary" onclick="addTransaction()" style="margin-top:8px">Salvar transação</button>
@@ -947,11 +1009,22 @@
   <div class="modal-sheet">
     <div class="modal-handle"></div>
     <div class="modal-title">Nova meta financeira</div>
+    <div class="form-group">
+      <label>Tipo de meta</label>
+      <select id="goal-type">
+        <option value="viagem">✈️ Viagem</option>
+        <option value="casa">🏠 Casa</option>
+        <option value="carro">🚗 Carro</option>
+        <option value="casamento">💍 Casamento</option>
+        <option value="estudo">📚 Estudo</option>
+        <option value="outros" selected>🎯 Outros</option>
+      </select>
+    </div>
     <div class="form-group"><label>Nome da meta</label><input type="text" id="goal-name" placeholder="Ex: Viagem para Europa"></div>
-    <div class="form-group"><label>Valor alvo (R$)</label><input type="number" id="goal-target" placeholder="0,00"></div>
-    <div class="form-group"><label>Já guardei (R$)</label><input type="number" id="goal-current" placeholder="0,00"></div>
-    <div class="form-group"><label>Emoji / Ícone</label><input type="text" id="goal-icon" placeholder="✈️" maxlength="2"></div>
-    <button class="btn-primary" onclick="addGoal()">Criar meta</button>
+    <div class="form-group"><label>Valor alvo (R$)</label><input type="number" id="goal-target" placeholder="0,00" step="0.01"></div>
+    <div class="form-group"><label>Já guardei (R$)</label><input type="number" id="goal-current" placeholder="0,00" step="0.01"></div>
+    <div class="form-group"><label>Data para atingir</label><input type="date" id="goal-end-date"></div>
+    <button class="btn-primary" onclick="addGoal()" style="margin-top:8px">Criar meta</button>
     <button onclick="closeModal('modal-goal')" style="width:100%;background:none;border:none;color:var(--muted);padding:14px;cursor:pointer;font-family:'DM Sans',sans-serif">Cancelar</button>
   </div>
 </div>
@@ -961,20 +1034,40 @@
   <div class="modal-sheet" style="text-align:center">
     <div class="modal-handle"></div>
     <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#c040fb);display:flex;align-items:center;justify-content:center;font-size:1.8rem;margin:0 auto 16px">⭐</div>
-    <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.3rem;margin-bottom:6px">Desbloqueie o Premium</div>
-    <div style="color:rgba(180,200,255,0.5);font-size:0.82rem;line-height:1.6;margin-bottom:20px" id="upgrade-msg">Usuários Premium identificam e cortam em média <strong style="color:var(--text)">R$ 580/mês</strong> em gastos desnecessários.</div>
-    <div style="background:linear-gradient(135deg,rgba(130,10,209,0.15),rgba(90,10,180,0.08));border:1px solid rgba(130,10,209,0.3);border-radius:16px;padding:20px;margin-bottom:18px">
-      <div style="font-size:0.72rem;color:var(--muted);font-weight:600;letter-spacing:0.08em;margin-bottom:8px">FINNO PREMIUM</div>
-      <div style="font-family:Syne,sans-serif;font-weight:800;font-size:2.2rem;margin-bottom:4px;color:var(--text)">R$ 19,90<span style="font-size:0.95rem;font-weight:400;color:var(--muted)">/mês</span></div>
-      <div style="font-size:0.78rem;color:var(--success);margin-bottom:12px">✓ 7 dias completamente grátis · cancele quando quiser</div>
-      <div style="display:flex;flex-direction:column;gap:6px;text-align:left">
-        <div style="font-size:0.78rem;color:rgba(255,255,255,0.65);display:flex;gap:8px;align-items:center"><span>🏦</span> +200 bancos conectados automaticamente</div>
-        <div style="font-size:0.78rem;color:rgba(255,255,255,0.65);display:flex;gap:8px;align-items:center"><span>🤖</span> Insights com IA do seu perfil financeiro</div>
-        <div style="font-size:0.78rem;color:rgba(255,255,255,0.65);display:flex;gap:8px;align-items:center"><span>🎯</span> Metas ilimitadas + alertas em tempo real</div>
+    <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.2rem;margin-bottom:6px">Faça upgrade do seu plano</div>
+    <div style="color:rgba(180,200,255,0.5);font-size:0.82rem;line-height:1.6;margin-bottom:18px" id="upgrade-msg">Usuários Pro identificam e cortam em média <strong style="color:var(--text)">R$ 580/mês</strong> em gastos desnecessários com a IA.</div>
+
+    <!-- Opções de plano no modal de upgrade -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;text-align:left">
+      <div style="background:var(--surface2);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="showPlanPayment('pro');closeModal('modal-upgrade')">
+        <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#7c6dfa,#6090ff);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0">🤖</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.88rem;font-weight:700">Finno Pro</div>
+          <div style="font-size:0.73rem;color:var(--muted)">IA financeira + metas ilimitadas</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1rem">R$ 14,90</div>
+          <div style="font-size:0.68rem;color:var(--muted)">/mês</div>
+        </div>
+      </div>
+      <div style="background:linear-gradient(135deg,rgba(130,10,209,0.15),rgba(90,10,180,0.08));border:2px solid rgba(130,10,209,0.4);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;position:relative" onclick="showPlanPayment('premium');closeModal('modal-upgrade')">
+        <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--accent),#a020e0);color:white;font-size:0.62rem;font-weight:700;padding:3px 10px;border-radius:99px;white-space:nowrap">7 DIAS GRÁTIS</div>
+        <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#7c6dfa,#fa6d9a);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0">🏦</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.88rem;font-weight:700">Finno Premium</div>
+          <div style="font-size:0.73rem;color:var(--muted)">Tudo do Pro + bancos conectados</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1rem">R$ 19,90</div>
+          <div style="font-size:0.68rem;color:var(--success)">trial grátis</div>
+        </div>
       </div>
     </div>
-    <button class="btn-primary" onclick="showPremiumPayment();closeModal('modal-upgrade')" style="margin-bottom:10px;background:linear-gradient(135deg,var(--accent),#a020e0);box-shadow:0 8px 24px rgba(130,10,209,0.4)">🚀 Testar grátis por 7 dias →</button>
-    <button onclick="closeModal('modal-upgrade')" style="width:100%;background:none;border:none;color:var(--muted);padding:10px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.8rem">Continuar sem Premium</button>
+
+    <div style="font-size:0.72rem;color:var(--muted);margin-bottom:14px">
+      ✓ Cancele quando quiser · Sem fidelidade · SSL seguro
+    </div>
+    <button onclick="closeModal('modal-upgrade')" style="width:100%;background:none;border:none;color:var(--muted);padding:10px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.8rem">Continuar no plano atual</button>
   </div>
 </div>
 
@@ -988,8 +1081,9 @@
           <img id="menu-photo" src="" style="display:none;width:100%;height:100%;object-fit:cover">
           <span id="menu-initials">?</span>
         </div>
-        <div onclick="triggerPhotoUpload()" style="position:absolute;bottom:-2px;right:-2px;width:22px;height:22px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.65rem;cursor:pointer;border:2px solid var(--surface)">📷</div>
+        <div onclick="triggerPhotoUpload()" style="position:absolute;bottom:-2px;right:-2px;width:22px;height:22px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.65rem;cursor:pointer;border:2px solid var(--surface)" title="Trocar foto">📷</div>
         <input type="file" id="photo-upload" accept="image/*" style="display:none" onchange="handlePhotoUpload(this)">
+        <div id="remove-photo-btn" onclick="removePhoto()" style="position:absolute;top:-4px;right:-4px;width:20px;height:20px;background:rgba(248,113,113,0.9);border-radius:50%;display:none;align-items:center;justify-content:center;font-size:0.6rem;cursor:pointer;border:2px solid var(--surface);color:white;font-weight:700" title="Remover foto">✕</div>
       </div>
       <div style="flex:1;min-width:0">
         <div id="menu-name" style="font-family:Syne,sans-serif;font-weight:700;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Carregando...</div>
@@ -1029,14 +1123,20 @@
       <div id="plan-section-free" style="display:none">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
           <span style="font-size:1.5rem">🆓</span>
-          <div><div style="font-size:0.88rem;font-weight:600">Plano Gratuito</div><div style="font-size:0.75rem;color:var(--muted)">Sem conexão bancária automática</div></div>
+          <div><div style="font-size:0.88rem;font-weight:600">Plano Gratuito</div><div style="font-size:0.75rem;color:var(--muted)">IA e bancos bloqueados</div></div>
         </div>
-        <button onclick="closeModal('modal-account');setTimeout(showPremiumPayment,200)" style="width:100%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;border:none;border-radius:10px;padding:12px;font-family:Syne,sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer">⭐ Assinar Premium — R$ 19,90/mês</button>
+        <div style="display:flex;gap:8px">
+          <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('pro'),200)" style="flex:1;background:rgba(124,109,250,0.15);color:var(--accent);border:1px solid rgba(124,109,250,0.3);border-radius:10px;padding:10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer">🤖 Pro R$ 14,90</button>
+          <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('premium'),200)" style="flex:1;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;border:none;border-radius:10px;padding:10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;cursor:pointer">🏦 Premium 7d grátis</button>
+        </div>
       </div>
       <div id="plan-section-premium" style="display:none">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
           <span style="font-size:1.5rem">⭐</span>
-          <div><div style="font-size:0.88rem;font-weight:600">Finno Premium</div><div style="font-size:0.75rem;color:var(--success)">✓ Ativo · R$ 19,90/mês</div></div>
+          <div>
+            <div style="font-size:0.88rem;font-weight:600" id="active-plan-name">Finno Premium</div>
+            <div style="font-size:0.75rem;color:var(--success)">✓ Ativo · assinatura mensal</div>
+          </div>
         </div>
         <button onclick="confirmCancelPremium()" style="width:100%;background:transparent;border:1px solid rgba(248,113,113,0.3);color:var(--danger);border-radius:10px;padding:12px;font-family:Syne,sans-serif;font-weight:600;font-size:0.85rem;cursor:pointer">Cancelar assinatura</button>
       </div>

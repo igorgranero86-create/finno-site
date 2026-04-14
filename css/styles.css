@@ -974,6 +974,16 @@ body::before {
 }
 .plan-btn.premium-btn:hover { box-shadow: 0 8px 28px rgba(130,10,209,0.5); }
 
+/* Card Pro — destaque "Mais popular" */
+.plan-card.pro-card {
+  background: linear-gradient(145deg, #0d0d20, #111128);
+  box-shadow: 0 0 0 2px rgba(124,109,250,0.4), 0 12px 32px rgba(124,109,250,0.15);
+}
+.plan-card.pro-card:hover {
+  box-shadow: 0 0 0 2px rgba(124,109,250,0.6), 0 16px 40px rgba(124,109,250,0.25);
+  transform: translateY(-3px);
+}
+
 /* ── CONNECT SCREEN ─────────────────────────────────────────── */
 #screen-connect {
   align-items: center; justify-content: center;
@@ -1033,6 +1043,7 @@ body::before {
   display: flex; flex-direction: column;
   align-items: center; justify-content: flex-end;
   padding: 32px 24px; border-radius: var(--r-xl); z-index: 5;
+  /* pointer-events definido via JS para não bloquear tabs quando ativo */
 }
 .paywall-icon { font-size: 2.5rem; margin-bottom: 12px; }
 .paywall-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.1rem; margin-bottom: 6px; text-align: center; }

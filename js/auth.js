@@ -626,11 +626,14 @@ function openAccountMenu() {
 
   // Avatar
   const savedPhoto = localStorage.getItem('finno_photo_' + user.uid);
+  const removeBtnEl = document.getElementById('remove-photo-btn');
   if (savedPhoto) {
     if (photoEl) { photoEl.src = savedPhoto; photoEl.style.display = 'block'; }
     if (initialsEl) initialsEl.style.display = 'none';
+    if (removeBtnEl) removeBtnEl.style.display = 'flex';
   } else {
     if (photoEl) photoEl.style.display = 'none';
+    if (removeBtnEl) removeBtnEl.style.display = 'none';
     const name = user.displayName || user.email || '?';
     const parts = name.split(' ');
     const initials = parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
@@ -803,6 +806,10 @@ function handlePhotoUpload(input) {
     if (menuPhoto) { menuPhoto.src = dataUrl; menuPhoto.style.display = 'block'; }
     if (menuInitials) menuInitials.style.display = 'none';
 
+    // Mostrar botão de remover foto
+    const removeBtn = document.getElementById('remove-photo-btn');
+    if (removeBtn) removeBtn.style.display = 'flex';
+
     // Update nav avatar
     const navAvatar = document.getElementById('nav-avatar');
     if (navAvatar) {
@@ -830,6 +837,10 @@ function removePhoto() {
   const menuInitials = document.getElementById('menu-initials');
   if (menuPhoto) { menuPhoto.src = ''; menuPhoto.style.display = 'none'; }
   if (menuInitials) menuInitials.style.display = 'block';
+
+  // Esconder botão de remover foto
+  const removeBtn = document.getElementById('remove-photo-btn');
+  if (removeBtn) removeBtn.style.display = 'none';
 
   // Update nav avatar
   setAvatar(user);
