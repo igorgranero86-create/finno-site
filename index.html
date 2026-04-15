@@ -313,8 +313,13 @@
       <button class="btn-primary" onclick="doRegister()" style="margin-top:12px">Criar conta segura →</button>
 
       <div class="auth-terms">
-        Ao criar sua conta você concorda com os <a href="#">Termos de Uso</a> e a <a href="#">Política de Privacidade</a>.<br>
-        Seus dados são protegidos por criptografia SSL e seguem a LGPD.
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:0.78rem;color:var(--muted);line-height:1.5">
+          <input type="checkbox" id="lgpd-consent" style="margin-top:2px;accent-color:var(--accent);flex-shrink:0">
+          <span>Li e concordo com os <a href="/pages/terms.html" target="_blank" style="color:var(--accent)">Termos de Uso</a> e a
+          <a href="/pages/privacy.html" target="_blank" style="color:var(--accent)">Política de Privacidade</a>.
+          Seus dados são protegidos por criptografia SSL e seguem a LGPD.</span>
+        </label>
+        <div id="lgpd-error" class="input-error" style="display:none;margin-top:6px">Aceite os termos para continuar.</div>
       </div>
       <div class="auth-switch">Já tem conta? <a onclick="showView('auth-login')">Entrar agora</a></div>
 
@@ -394,6 +399,14 @@
       </div>
       <div id="recaptcha-container"></div>
       <div id="phone-error" class="input-error" style="display:none"></div>
+      <div class="auth-terms" style="margin-bottom:12px">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:0.78rem;color:var(--muted);line-height:1.5">
+          <input type="checkbox" id="lgpd-consent-phone" style="margin-top:2px;accent-color:var(--accent);flex-shrink:0">
+          <span>Li e concordo com os <a href="/pages/terms.html" target="_blank" style="color:var(--accent)">Termos de Uso</a> e a
+          <a href="/pages/privacy.html" target="_blank" style="color:var(--accent)">Política de Privacidade</a>.</span>
+        </label>
+        <div id="lgpd-error-phone" class="input-error" style="display:none;margin-top:6px">Aceite os termos para continuar.</div>
+      </div>
       <button class="btn-primary" onclick="sendSMS()">Enviar código SMS →</button>
       <div class="auth-switch" style="margin-top:12px"><a onclick="showView('auth-login')">← Voltar para e-mail</a></div>
     </div>
@@ -762,13 +775,22 @@
 
       <div class="home-metrics">
         <div class="home-metric">
-          <div class="m-icon">📉</div><div class="m-label">Gastos</div>
+          <div class="m-icon">📉</div>
+          <div class="m-label">Gastos</div>
           <div class="m-value negative" id="home-expenses">R$ 4.213</div>
           <div class="m-sub" id="home-expenses-label">este mês</div>
+        </div>
+        <div class="home-metric">
+          <div class="m-icon">📈</div>
+          <div class="m-label">Receitas</div>
           <div class="m-value positive" id="home-income">R$ 8.500</div>
           <div class="m-sub" id="home-income-label">este mês</div>
+        </div>
+        <div class="home-metric">
+          <div class="m-icon">💰</div>
+          <div class="m-label">Saldo livre</div>
           <div class="m-value neutral" id="home-available">R$ 4.286</div>
-          <div class="m-sub">saldo livre</div>
+          <div class="m-sub">este mês</div>
         </div>
       </div>
 
@@ -1179,6 +1201,10 @@
       <div onclick="confirmLogout()" style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:14px;cursor:pointer;color:var(--danger)">
         <span style="font-size:1.1rem">🚪</span>
         <div style="font-size:0.88rem;font-weight:600">Sair da conta</div>
+      </div>
+      <div onclick="confirmDeleteAccount()" style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:14px;cursor:pointer;color:var(--danger);opacity:0.7">
+        <span style="font-size:1.1rem">🗑️</span>
+        <div style="font-size:0.85rem;font-weight:500">Excluir minha conta</div>
       </div>
     </div>
     <div style="text-align:center;margin-top:12px;font-size:0.7rem;color:var(--muted)">Finno v1.1</div>

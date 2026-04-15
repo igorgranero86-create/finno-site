@@ -26,6 +26,7 @@ import {
   doc,
   setDoc,
   getDoc,
+  deleteDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
@@ -71,6 +72,7 @@ export {
   doc,
   setDoc,
   getDoc,
+  deleteDoc,
   serverTimestamp
 };
 
@@ -78,49 +80,54 @@ export {
 
 /**
  * Creates a user document in Firestore (only if it doesn't exist).
- * Optionally merges CPF if provided.
+ * CPF nunca é salvo aqui em texto puro — unicidade é garantida via cpfs/{hash}.
  */
 export async function saveUserProfile(user, extra = {}) {
   const ref = doc(db, 'users', user.uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) {
-    await setDoc(ref, {
+    const data = {
       uid: user.uid,
       email: user.email || null,
       phone: user.phoneNumber || null,
       displayName: user.displayName || extra.displayName || null,
       photoURL: user.photoURL || null,
       provider: extra.provider || 'email',
-      cpf: extra.cpf || null,
       createdAt: serverTimestamp(),
-    });
-  } else if (extra.cpf) {
-    await setDoc(ref, { cpf: extra.cpf }, { merge: true });
+    };
+    // Contas demo (IS_DEMO_MODE=true) marcadas no Firestore — bypass seguro para
+    // verificação de e-mail sem depender de localStorage (que é manipulável via DevTools).
+    if (extra.demoMode) data.demoMode = true;
+    await setDoc(ref, data);
   }
 }
 
 /**
- * Returns true if the given CPF is not yet registered.
+ * Verifica se o CPF ainda não está registrado — via Cloud Function.
+ * Retorna false (bloqueio) em caso de erro, para evitar cadastros duplicados silenciosos.
  */
 export async function checkCPFUnique(cpf) {
-  const clean = cpf.replace(/\D/g, '');
   try {
-    const snap = await getDoc(doc(db, 'cpfs', clean));
-    return !snap.exists();
+    const fn = httpsCallable(functions, 'checkCPFUnique');
+    const result = await fn({ cpf });
+    return result.data.available === true;
   } catch (e) {
-    return true; // allow if check fails
+    console.error('Erro ao verificar CPF:', e.message);
+    return false; // fail-closed: bloqueia se a verificação falhar
   }
 }
 
 /**
- * Registers the CPF in Firestore so it cannot be reused.
+ * Registra o hash do CPF via Cloud Function — ambas as gravações (cpfs + users)
+ * ficam no servidor, fora do alcance das Firestore Rules do cliente.
+ * Lança erro se o CPF já existir ou se a gravação falhar.
  */
 export async function saveCPF(cpf, uid) {
-  const clean = cpf.replace(/\D/g, '');
-  try {
-    await setDoc(doc(db, 'cpfs', clean), { uid, createdAt: serverTimestamp() });
-  } catch (e) {
-    console.warn('CPF save error', e);
+  const fn = httpsCallable(functions, 'saveCPF');
+  const result = await fn({ cpf });
+  // Cache local para acelerar a exclusão de conta sem depender do Firestore
+  if (result.data?.cpfHash) {
+    localStorage.setItem('finno_cpf_ref_' + uid, result.data.cpfHash);
   }
 }
 
@@ -168,18 +175,26 @@ export function getBankLimit(state) {
 
 // ── Pluggy data fetch ─────────────────────────────────────────────
 // Obtém o accessToken via Cloud Function — credenciais nunca chegam ao frontend.
-// Retorna null em qualquer falha, ativando o modo demo automaticamente.
+// Retorna null em qualquer falha (dashboard entra em modo sem dados bancários).
 export async function fetchPluggyData() {
   try {
     const user = auth.currentUser;
-    if (!user) return null; // sem sessão ativa → modo demo
+    if (!user) return null;
     const getToken = httpsCallable(functions, 'getPluggyAccessToken');
     const result = await getToken();
     return result.data?.apiKey || null;
   } catch (e) {
-    console.warn('Pluggy token indisponível, usando modo demo:', e.message);
+    console.warn('Pluggy token indisponível:', e.message);
     return null;
   }
+}
+
+// ── Account deletion via Cloud Function ──────────────────────────
+// Deleta users/{uid} e cpfs/{cpfHash} via Admin SDK (ignora Firestore Rules).
+// O cliente deve chamar isso ANTES de user.delete() e depois limpar o localStorage.
+export async function deleteAccountViaCloud() {
+  const fn = httpsCallable(functions, 'deleteAccount');
+  await fn(); // lança HttpsError se o usuário não estiver autenticado ou ocorrer erro
 }
 
 // ── Pluggy Connect Token ──────────────────────────────────────────
@@ -212,8 +227,27 @@ export function firebaseErrPT(code) {
   return map[code] || 'Erro inesperado. Tente novamente.';
 }
 
+/**
+ * Sincroniza o plano do usuário com o Firestore via Cloud Function.
+ * Planos gratuitos (free, trial) são aceitos; pagos requerem webhook de pagamento.
+ * Falha silenciosamente — o plano local (localStorage) continua funcionando para a UI.
+ */
+export async function savePlanToFirestore(uid, plan) {
+  if (!uid) return;
+  try {
+    const fn = httpsCallable(functions, 'setPlan');
+    await fn({ plan });
+  } catch (e) {
+    // Planos pagos são rejeitados pelo CF por design — log apenas para outros erros.
+    if (!e.message?.includes('confirmação de pagamento')) {
+      console.warn('Plan sync to Firestore failed:', e.message);
+    }
+  }
+}
+
 // Expose plan helpers to window (used by HTML onclick attributes)
 window.getPlanState  = getPlanState;
+window.savePlanToFirestore = savePlanToFirestore;
 window.hasAI         = hasAI;
 window.hasBanks      = hasBanks;
 window.getBankLimit  = getBankLimit;

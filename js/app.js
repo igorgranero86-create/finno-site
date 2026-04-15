@@ -3,7 +3,7 @@
 //           onboarding, PWA service worker + install prompt
 // ================================================================
 
-import { auth, onAuthStateChanged, getPlanState } from './api.js';
+import { auth, db, onAuthStateChanged, getPlanState, doc, getDoc } from './api.js';
 import './auth.js';
 import {
   buildDashboard, applyPlanUI, runLoadingSequence,
@@ -86,17 +86,23 @@ onAuthStateChanged(auth, user => {
     setAvatar(user);
     const uid = user.uid;
 
-    // Email/password users must verify their email before proceeding
-    // Exception: demo Google/phone accounts bypass this gate
+    // Email/password users must verify their email before proceeding.
+    // Exception: contas demo criadas com IS_DEMO_MODE=true têm demoMode:true no Firestore
+    // (não no localStorage — evita bypass via DevTools).
     const provider = user.providerData[0]?.providerId;
-    const isDemoAccount = !!localStorage.getItem(`finno_demo_google_${user.uid}`) ||
-                          !!localStorage.getItem(`finno_demo_phone_${user.uid}`);
-    if (provider === 'password' && !user.emailVerified && !isDemoAccount) {
-      const subEl = document.getElementById('verify-email-sub');
-      if (subEl) subEl.textContent = `Confirme o e-mail enviado para ${user.email}.`;
-      showScreen('screen-verify-email');
-      if (loader) { loader.classList.add('hide'); setTimeout(() => loader.style.display = 'none', 500); }
-      return;
+    if (provider === 'password' && !user.emailVerified) {
+      let isDemoAccount = false;
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        isDemoAccount = snap.exists() && snap.data()?.demoMode === true;
+      } catch (_) {}
+      if (!isDemoAccount) {
+        const subEl = document.getElementById('verify-email-sub');
+        if (subEl) subEl.textContent = `Confirme o e-mail enviado para ${user.email}.`;
+        showScreen('screen-verify-email');
+        if (loader) { loader.classList.add('hide'); setTimeout(() => loader.style.display = 'none', 500); }
+        return;
+      }
     }
 
     // Developer always gets premium

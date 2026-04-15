@@ -2,6 +2,9 @@
 // auth.js — All authentication flows
 // ================================================================
 
+// Em produção: false. Em dev/staging com domínio não autorizado: true.
+const IS_DEMO_MODE = false;
+
 import {
   auth, db,
   onAuthStateChanged,
@@ -21,11 +24,13 @@ import {
   doc,
   setDoc,
   getDoc,
+  deleteDoc,
   serverTimestamp,
   firebaseErrPT,
   saveUserProfile,
   checkCPFUnique,
-  saveCPF
+  saveCPF,
+  deleteAccountViaCloud
 } from './api.js';
 
 // ── DOM helpers (shared with app.js via window) ───────────────────
@@ -113,6 +118,14 @@ function validateCPF(cpf) {
 // ── Register (email + verification) ──────────────────────────────
 async function doRegister() {
   clearErr('reg-error');
+
+  const lgpdEl = document.getElementById('lgpd-consent');
+  const lgpdErr = document.getElementById('lgpd-error');
+  if (!lgpdEl?.checked) {
+    if (lgpdErr) lgpdErr.style.display = 'block';
+    return;
+  }
+  if (lgpdErr) lgpdErr.style.display = 'none';
   // Suporta tanto o campo unificado "reg-nome-completo" quanto os campos separados legados
   const nomeCompleto = (
     document.getElementById('reg-nome-completo')?.value.trim() ||
@@ -148,7 +161,7 @@ async function doRegister() {
     const cred = await createUserWithEmailAndPassword(auth, email, senha);
     await updateProfile(cred.user, { displayName: nomeCompleto });
     await sendEmailVerification(cred.user);
-    await saveUserProfile(cred.user, { displayName: nomeCompleto, provider: 'email', cpf: cpf.replace(/\D/g, '') });
+    await saveUserProfile(cred.user, { displayName: nomeCompleto, provider: 'email' });
     await saveCPF(cpf, cred.user.uid);
 
     const subEl = document.getElementById('verify-email-sub');
@@ -156,7 +169,11 @@ async function doRegister() {
     showScreen('screen-verify-email');
     toast('Conta criada! Confirme seu e-mail para continuar.', 'success');
   } catch (e) {
-    showErr('reg-error', firebaseErrPT(e.code));
+    // Erros de Cloud Function expõem e.message diretamente; erros Auth usam e.code
+    const msg = e.code?.startsWith('functions/')
+      ? (e.message || 'Erro inesperado. Tente novamente.')
+      : firebaseErrPT(e.code);
+    showErr('reg-error', msg);
     if (btn) { btn.disabled = false; btn.textContent = 'Criar conta segura →'; }
   }
 }
@@ -181,7 +198,7 @@ async function doLogin() {
       const subEl = document.getElementById('verify-email-sub');
       if (subEl) subEl.textContent = `Confirme o e-mail enviado para ${email} antes de entrar.`;
       showScreen('screen-verify-email');
-      if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Acessar minha conta →'; }
     }
     // onAuthStateChanged in app.js handles navigation for verified users
   } catch (e) {
@@ -192,6 +209,33 @@ async function doLogin() {
 window.doLogin = doLogin;
 
 // ── Google auth ───────────────────────────────────────────────────
+// Modal de consentimento LGPD exibido apenas para novos usuários Google.
+function showGoogleConsentModal() {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:flex-end;justify-content:center;padding:16px';
+    overlay.innerHTML = `
+      <div style="background:var(--surface);border-radius:20px 20px 16px 16px;padding:24px;width:100%;max-width:420px;box-shadow:0 -8px 32px rgba(0,0,0,0.4)">
+        <div style="font-family:Syne,sans-serif;font-weight:700;font-size:1.05rem;margin-bottom:8px">Antes de criar sua conta</div>
+        <p style="font-size:0.82rem;color:var(--muted);line-height:1.6;margin-bottom:16px">Para usar o Finno, você precisa aceitar nossos Termos de Uso e Política de Privacidade.</p>
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:0.82rem;color:var(--muted);line-height:1.5;margin-bottom:20px">
+          <input type="checkbox" id="google-lgpd-cb" style="margin-top:2px;accent-color:var(--accent);flex-shrink:0">
+          <span>Li e concordo com os <a href="/pages/terms.html" target="_blank" style="color:var(--accent)">Termos de Uso</a> e a <a href="/pages/privacy.html" target="_blank" style="color:var(--accent)">Política de Privacidade</a>. Meus dados são protegidos conforme a LGPD.</span>
+        </label>
+        <button id="google-consent-ok" style="width:100%;background:linear-gradient(135deg,var(--accent),#0052cc);color:#fff;border:none;border-radius:12px;padding:14px;font-family:Syne,sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;margin-bottom:10px">Concordar e entrar</button>
+        <button id="google-consent-cancel" style="width:100%;background:none;border:none;color:var(--muted);padding:10px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.85rem">Cancelar</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('google-consent-ok').onclick = () => {
+      const cb = document.getElementById('google-lgpd-cb');
+      if (!cb.checked) { cb.style.outline = '2px solid var(--danger)'; return; }
+      overlay.remove();
+      resolve(true);
+    };
+    document.getElementById('google-consent-cancel').onclick = () => { overlay.remove(); resolve(false); };
+  });
+}
+
 // Demo fallback: when Firebase popup fails (domain not authorized,
 // file:// protocol, etc), create a demo account so the UX still works.
 async function authGoogle() {
@@ -211,6 +255,18 @@ async function authGoogle() {
 
   try {
     const cred = await signInWithPopup(auth, provider);
+    // Verificar se é novo usuário (doc ainda não existe no Firestore)
+    const userRef = doc(db, 'users', cred.user.uid);
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) {
+      const accepted = await showGoogleConsentModal();
+      if (!accepted) {
+        await signOut(auth);
+        restore();
+        toast('É necessário aceitar os Termos para criar sua conta.', 'error');
+        return;
+      }
+    }
     await saveUserProfile(cred.user, { provider: 'google' });
     // onAuthStateChanged handles routing
   } catch (e) {
@@ -228,8 +284,12 @@ async function authGoogle() {
     );
 
     if (isDomainIssue) {
-      toast('Abrindo modo demo do Google...', 'success');
-      await _demoGoogleLogin();
+      if (IS_DEMO_MODE) {
+        toast('Abrindo modo demo do Google...', 'success');
+        await _demoGoogleLogin();
+      } else {
+        toast('Login com Google indisponível neste domínio. Use e-mail ou celular.', 'error');
+      }
       return;
     }
 
@@ -239,7 +299,8 @@ async function authGoogle() {
 window.authGoogle = authGoogle;
 
 // Creates a Firebase email/password account that simulates a Google login.
-// Used when the real popup cannot open (file://, unlisted domain, etc).
+// Used only when IS_DEMO_MODE=true (dev/staging sem domínio autorizado).
+// demoMode:true é gravado no Firestore para permitir bypass seguro do gate de e-mail.
 async function _demoGoogleLogin() {
   const googleNames = ['Ana Lima', 'Carlos Souza', 'Mariana Costa', 'Rafael Oliveira', 'Juliana Santos'];
   const displayName = googleNames[Math.floor(Math.random() * googleNames.length)];
@@ -250,13 +311,9 @@ async function _demoGoogleLogin() {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName });
-    // Mark email as "verified" in Firestore metadata so it bypasses the email-verify gate
     await saveUserProfile(cred.user, { provider: 'google', displayName, demoMode: true });
-    // Force-mark email verified in our local plan state so the gate is skipped
-    localStorage.setItem(`finno_demo_google_${cred.user.uid}`, '1');
     toast(`Entrando como ${displayName} (modo demo) ✓`, 'success');
-    // onAuthStateChanged picks this up — but provider will be 'password'.
-    // We patch the verification check by storing the demo flag.
+    // onAuthStateChanged picks this up — provider will be 'password'.
   } catch (e) {
     if (e.code === 'auth/email-already-in-use') {
       // Demo account already exists — sign in
@@ -283,6 +340,15 @@ let _demoPhoneMode = false; // true when running the SMS demo fallback
 
 async function sendSMS() {
   clearErr('phone-error');
+
+  const lgpdPhone = document.getElementById('lgpd-consent-phone');
+  const lgpdPhoneErr = document.getElementById('lgpd-error-phone');
+  if (!lgpdPhone?.checked) {
+    if (lgpdPhoneErr) lgpdPhoneErr.style.display = 'block';
+    return;
+  }
+  if (lgpdPhoneErr) lgpdPhoneErr.style.display = 'none';
+
   const cpf  = document.getElementById('phone-cpf')?.value.trim() || '';
   const nome = document.getElementById('phone-nome')?.value.trim() || '';
   const ddi  = document.getElementById('phone-ddi').value;
@@ -342,9 +408,14 @@ async function sendSMS() {
       return;
     }
 
-    // Everything else → activate demo mode so the UX still works
-    console.warn('[Finno] SMS via Firebase falhou, ativando modo demo:', e.code);
-    _demoPhoneMode = true;
+    // Everything else → demo apenas se IS_DEMO_MODE estiver ativo
+    if (IS_DEMO_MODE) {
+      console.warn('[Finno] SMS via Firebase falhou, ativando modo demo:', e.code);
+      _demoPhoneMode = true;
+    } else {
+      showErr('phone-error', 'Não foi possível enviar o SMS. Tente novamente ou use e-mail.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Enviar código SMS'; }
+    }
   }
 
   // ── Demo SMS mode ──────────────────────────────────────────────
@@ -425,7 +496,8 @@ async function verifyOTP() {
 }
 window.verifyOTP = verifyOTP;
 
-// Creates an email/password Firebase account to simulate phone login
+// Creates an email/password Firebase account to simulate phone login.
+// Usado apenas com IS_DEMO_MODE=true. demoMode:true gravado via saveUserProfile.
 async function _createDemoPhoneAccount() {
   const phone = (window._pendingPhone || '').replace(/\D/g, '');
   const tag = Date.now().toString(36);
@@ -443,10 +515,8 @@ async function _createDemoPhoneAccount() {
       } else throw e;
     }
     await updateProfile(cred.user, { displayName });
-    await saveUserProfile(cred.user, { provider: 'phone', displayName, demoMode: true, cpf: (window._pendingCPF || '').replace(/\D/g, '') });
+    await saveUserProfile(cred.user, { provider: 'phone', displayName, demoMode: true });
     if (window._pendingCPF) await saveCPF(window._pendingCPF, cred.user.uid);
-    // Mark as demo so onAuthStateChanged skips the email-verify gate
-    localStorage.setItem(`finno_demo_phone_${cred.user.uid}`, '1');
     window._pendingCPF = null; window._pendingName = null; window._pendingPhone = null;
     _demoPhoneMode = false;
     toast(`Bem-vindo, ${displayName.split(' ')[0]}! ✓`, 'success');
@@ -847,6 +917,60 @@ function removePhoto() {
   toast('Foto removida.', 'success');
 }
 window.removePhoto = removePhoto;
+
+// ── Account deletion (LGPD art. 18, VI) ──────────────────────────
+// Ordem segura: Auth primeiro → só apaga dados se Auth foi deletada com sucesso.
+// Isso evita estado parcial (dados apagados mas conta ainda existindo).
+export async function confirmDeleteAccount() {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const confirmed = confirm(
+    'Tem certeza? Esta ação é irreversível.\n\n' +
+    'Seus dados serão apagados permanentemente: transações, metas e perfil.'
+  );
+  if (!confirmed) return;
+
+  const uid = user.uid;
+  const provider = user.providerData[0]?.providerId;
+
+  // Usuários e-mail: reautenticar preventivamente para garantir sessão recente.
+  // Evita que user.delete() falhe depois que os dados do Firestore já foram apagados.
+  if (provider === 'password') {
+    const senha = prompt('Para confirmar, informe sua senha atual:');
+    if (!senha) return;
+    try {
+      const cred = EmailAuthProvider.credential(user.email, senha);
+      await reauthenticateWithCredential(user, cred);
+    } catch (e) {
+      toast('Senha incorreta. Exclusão cancelada.', 'error');
+      return;
+    }
+  }
+
+  try {
+    // Cloud Function apaga Firestore + conta Auth atomicamente via Admin SDK.
+    // Admin SDK nunca requer sessão recente — elimina o risco de estado parcial
+    // que existia quando user.delete() era chamado pelo cliente.
+    await deleteAccountViaCloud();
+
+    // Limpar localStorage — feito após CF pois é local e não pode falhar.
+    Object.keys(localStorage)
+      .filter(k => k.includes(uid))
+      .forEach(k => localStorage.removeItem(k));
+
+    // Encerrar sessão local — o token Firebase ainda existe em memória mesmo após
+    // o Auth user ter sido deletado no servidor.
+    await signOut(auth).catch(() => {});
+
+    window.toast?.('Conta excluída com sucesso.', 'success');
+    window.showScreen?.('screen-splash');
+  } catch (e) {
+    console.error('Erro ao excluir conta:', e);
+    toast('Erro ao excluir conta. Tente novamente.', 'error');
+  }
+}
+window.confirmDeleteAccount = confirmDeleteAccount;
 
 // ── Bank navigation helper ────────────────────────────────────────
 function goToBanks() {

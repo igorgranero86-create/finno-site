@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Política de Privacidade — Finno</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a12;
+      --surface: #12121e;
+      --accent: #0066ff;
+      --text: #f0f0f8;
+      --muted: rgba(240,240,248,0.5);
+      --border: rgba(255,255,255,0.07);
+      --success: #00c896;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem;
+      line-height: 1.75;
+      padding: 0 0 60px;
+    }
+    header {
+      position: sticky; top: 0;
+      background: rgba(10,10,18,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px;
+      display: flex; align-items: center; gap: 12px;
+      z-index: 100;
+    }
+    header a { color: var(--accent); text-decoration: none; font-size: 0.85rem; }
+    header h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      flex: 1;
+    }
+    .container { max-width: 680px; margin: 0 auto; padding: 32px 20px; }
+    .updated { font-size: 0.78rem; color: var(--muted); margin-bottom: 32px; }
+    h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin: 32px 0 10px;
+      color: var(--text);
+    }
+    h2:first-of-type { margin-top: 0; }
+    h3 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin: 18px 0 6px;
+      color: rgba(240,240,248,0.9);
+    }
+    p { color: rgba(240,240,248,0.8); margin-bottom: 12px; }
+    ul { padding-left: 20px; color: rgba(240,240,248,0.8); margin-bottom: 12px; }
+    li { margin-bottom: 6px; }
+    a { color: var(--accent); }
+    .highlight {
+      background: rgba(0,102,255,0.08);
+      border: 1px solid rgba(0,102,255,0.2);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 16px 0;
+      font-size: 0.88rem;
+      color: rgba(240,240,248,0.9);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 0.85rem;
+    }
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.04);
+      color: var(--muted);
+      font-weight: 500;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      color: rgba(240,240,248,0.8);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .badge-green { background: rgba(0,200,150,0.12); color: var(--success); }
+    .badge-blue  { background: rgba(0,102,255,0.12); color: var(--accent); }
+    hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="../index.html">← Voltar</a>
+  <h1>Política de Privacidade</h1>
+</header>
+
+<div class="container">
+  <p class="updated">Última atualização: abril de 2025 · Versão 1.1 · Conforme a LGPD (Lei 13.709/2018)</p>
+
+  <div class="highlight">
+    Sua privacidade é uma prioridade no Finno. Esta política explica quais dados coletamos, por que os coletamos, como os protegemos e quais são seus direitos como titular.
+  </div>
+
+  <h2>1. Controlador dos Dados</h2>
+  <p>O controlador dos dados pessoais tratados neste aplicativo é o <strong>Finno</strong>. Para exercer seus direitos ou tirar dúvidas, entre em contato pelo e-mail <a href="mailto:privacidade@finnoapp.com.br">privacidade@finnoapp.com.br</a>.</p>
+
+  <h2>2. Dados Coletados</h2>
+
+  <h3>2.1 Dados de Identificação</h3>
+  <table>
+    <thead>
+      <tr><th>Dado</th><th>Como armazenado</th><th>Onde</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Nome completo</td>
+        <td>Texto puro</td>
+        <td>Firestore <span class="badge badge-blue">nuvem</span></td>
+      </tr>
+      <tr>
+        <td>E-mail</td>
+        <td>Texto puro</td>
+        <td>Firebase Auth + Firestore <span class="badge badge-blue">nuvem</span></td>
+      </tr>
+      <tr>
+        <td>Número de celular</td>
+        <td>Texto puro</td>
+        <td>Firebase Auth + Firestore <span class="badge badge-blue">nuvem</span></td>
+      </tr>
+      <tr>
+        <td>CPF</td>
+        <td><strong>Hash SHA-256</strong> — nunca em texto legível</td>
+        <td>Firestore <span class="badge badge-blue">nuvem</span> + localStorage <span class="badge badge-green">local</span></td>
+      </tr>
+      <tr>
+        <td>Foto de perfil</td>
+        <td>Base64 (imagem codificada)</td>
+        <td>localStorage <span class="badge badge-green">local</span> — não vai para servidores</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>2.2 Dados Financeiros</h3>
+  <table>
+    <thead>
+      <tr><th>Dado</th><th>Onde</th><th>Observação</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Transações (receitas e despesas)</td>
+        <td>localStorage <span class="badge badge-green">local</span></td>
+        <td>Nunca enviado ao servidor</td>
+      </tr>
+      <tr>
+        <td>Metas financeiras</td>
+        <td>localStorage <span class="badge badge-green">local</span></td>
+        <td>Nunca enviado ao servidor</td>
+      </tr>
+      <tr>
+        <td>Dados bancários (Open Finance)</td>
+        <td>Pluggy (provedor externo)</td>
+        <td>Apenas leitura via API; o Finno não persiste dados bancários</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>2.3 Dados Técnicos</h3>
+  <table>
+    <thead>
+      <tr><th>Dado</th><th>Onde</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>UID Firebase (identificador interno)</td>
+        <td>Firestore <span class="badge badge-blue">nuvem</span></td>
+      </tr>
+      <tr>
+        <td>Plano ativo e data de início do trial</td>
+        <td>Firestore + localStorage</td>
+      </tr>
+      <tr>
+        <td>Flag de onboarding concluído</td>
+        <td>localStorage <span class="badge badge-green">local</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. Finalidade e Base Legal</h2>
+  <table>
+    <thead>
+      <tr><th>Finalidade</th><th>Base Legal (LGPD)</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Autenticação e identificação do usuário</td>
+        <td>Execução de contrato (art. 7º, V)</td>
+      </tr>
+      <tr>
+        <td>Garantir unicidade do CPF (evitar múltiplas contas)</td>
+        <td>Legítimo interesse (art. 7º, IX) — prevenção de fraude</td>
+      </tr>
+      <tr>
+        <td>Exibir histórico financeiro e insights</td>
+        <td>Execução de contrato (art. 7º, V)</td>
+      </tr>
+      <tr>
+        <td>Conexão bancária via Open Finance (planos Premium/Trial)</td>
+        <td>Consentimento explícito + execução de contrato (art. 7º, I e V)</td>
+      </tr>
+      <tr>
+        <td>Enviar e-mails transacionais (verificação, recuperação de senha)</td>
+        <td>Execução de contrato (art. 7º, V)</td>
+      </tr>
+      <tr>
+        <td>Análise de uso para melhoria do serviço (Firebase Analytics)</td>
+        <td>Legítimo interesse (art. 7º, IX) — dados agregados e anonimizados</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>4. Compartilhamento de Dados</h2>
+  <p>O Finno não vende seus dados pessoais. Compartilhamos apenas com:</p>
+  <ul>
+    <li><strong>Google Firebase</strong> (Google LLC) — autenticação, banco de dados Firestore e analytics. Infraestrutura certificada ISO 27001, servidores localizados no Brasil (região southamerica-east1).</li>
+    <li><strong>Pluggy</strong> — instituição de pagamento autorizada pelo BCB, responsável pela conexão Open Finance nos planos Premium e Trial. Seus dados bancários ficam sob custódia da Pluggy, conforme a política de privacidade dela.</li>
+  </ul>
+  <p>Nenhum dado financeiro identificável é compartilhado com anunciantes ou terceiros para fins de marketing.</p>
+
+  <h2>5. Segurança</h2>
+  <ul>
+    <li>Toda comunicação é criptografada via <strong>HTTPS/TLS</strong>.</li>
+    <li>O CPF é armazenado exclusivamente como <strong>hash SHA-256</strong> — irreversível e não-identificável isoladamente.</li>
+    <li>O acesso ao Firestore é controlado por <strong>regras de segurança</strong> que garantem que cada usuário só pode ler e escrever seus próprios dados.</li>
+    <li>Credenciais da API Pluggy nunca chegam ao navegador — são mantidas no Firebase Secret Manager e acessadas apenas por Cloud Functions no servidor.</li>
+    <li>Dados financeiros (transações, metas) ficam armazenados <strong>apenas no seu dispositivo</strong> e não trafegam pela internet.</li>
+  </ul>
+
+  <h2>6. Retenção de Dados</h2>
+  <p>Seus dados são mantidos enquanto sua conta estiver ativa. Ao excluir sua conta:</p>
+  <ul>
+    <li>Perfil no Firestore (<code>users/{uid}</code>) — excluído imediatamente.</li>
+    <li>Registro de CPF (<code>cpfs/{hash}</code>) — excluído imediatamente, liberando o CPF para novo cadastro.</li>
+    <li>Dados locais (transações, metas, foto) — removidos do seu dispositivo.</li>
+    <li>Conta de autenticação Firebase — excluída imediatamente.</li>
+  </ul>
+  <p>Logs de acesso do Firebase Analytics são anonimizados e retidos por até 14 meses, conforme a política do Google.</p>
+
+  <h2>7. Seus Direitos (LGPD art. 18)</h2>
+  <p>Como titular dos dados, você tem direito a:</p>
+  <ul>
+    <li><strong>Acesso:</strong> saber quais dados temos sobre você.</li>
+    <li><strong>Correção:</strong> atualizar nome e dados de contato no app.</li>
+    <li><strong>Exclusão:</strong> apagar sua conta e todos os dados pelo menu "Conta" no app ou solicitando por e-mail.</li>
+    <li><strong>Portabilidade:</strong> solicitar exportação dos seus dados por e-mail.</li>
+    <li><strong>Revogação do consentimento:</strong> a qualquer momento, sem prejuízo ao uso dos dados já tratados de forma lícita.</li>
+    <li><strong>Informação sobre compartilhamento:</strong> saber com quais terceiros seus dados são compartilhados (ver seção 4).</li>
+  </ul>
+  <p>Para exercer qualquer direito, envie um e-mail para <a href="mailto:privacidade@finnoapp.com.br">privacidade@finnoapp.com.br</a> com o assunto "Exercício de Direitos LGPD". Responderemos em até 15 dias úteis.</p>
+
+  <h2>8. Cookies e Armazenamento Local</h2>
+  <p>O Finno não utiliza cookies de rastreamento ou publicidade comportamental. O armazenamento local (localStorage) é usado exclusivamente para funcionalidade do app:</p>
+  <ul>
+    <li>Suas transações e metas financeiras (mantidas no seu dispositivo).</li>
+    <li>Preferências do app (plano, configurações de exibição).</li>
+    <li>Cache de referência do hash do CPF (para exclusão de conta).</li>
+  </ul>
+  <p>O Firebase Analytics pode usar identificadores de sessão anônimos para análise de uso agregado.</p>
+
+  <h2>9. Menores de Idade</h2>
+  <p>O Finno não é destinado a menores de 18 anos. Não coletamos intencionalmente dados de menores. Se identificarmos que uma conta pertence a um menor, ela será excluída.</p>
+
+  <h2>10. Alterações nesta Política</h2>
+  <p>Atualizações materiais serão comunicadas por e-mail com pelo menos 15 dias de antecedência. A data de "Última atualização" no topo desta página sempre refletirá a versão vigente.</p>
+
+  <hr>
+  <p style="font-size:0.8rem;color:var(--muted)">
+    Encarregado de Dados (DPO): <a href="mailto:privacidade@finnoapp.com.br">privacidade@finnoapp.com.br</a><br>
+    Autoridade Nacional de Proteção de Dados (ANPD): <a href="https://www.gov.br/anpd" target="_blank">www.gov.br/anpd</a>
+  </p>
+</div>
+
+</body>
+</html>

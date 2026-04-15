@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Campos sensíveis que NUNCA podem ser escritos diretamente pelo cliente.
+    // Somente Cloud Functions com Admin SDK podem alterar esses campos.
+    function isSensitiveField(key) {
+      return key in ['plan', 'planUpdatedAt', 'cpfHash', 'demoMode'];
+    }
+
+    // Perfis: leitura apenas do próprio documento.
+    // Criação: permitida sem campos sensíveis.
+    // Atualização: permitida apenas em campos não-sensíveis (ex: displayName, photoURL).
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && !request.resource.data.keys().hasAny(
+                         ['plan', 'planUpdatedAt', 'cpfHash', 'demoMode']);
+
+      allow update: if request.auth != null
+                    && request.auth.uid == uid
+                    && !request.resource.data.diff(resource.data)
+                       .affectedKeys()
+                       .hasAny(['plan', 'planUpdatedAt', 'cpfHash', 'demoMode']);
+    }
+
+    // CPFs: nenhum acesso direto pelo cliente.
+    // Toda operação (verificação, registro, exclusão) passa por Cloud Functions.
+    match /cpfs/{cpfHash} {
+      allow read, write: if false;
+    }
+
+  }
+}

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Termos de Uso — Finno</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a12;
+      --surface: #12121e;
+      --accent: #0066ff;
+      --text: #f0f0f8;
+      --muted: rgba(240,240,248,0.5);
+      --border: rgba(255,255,255,0.07);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem;
+      line-height: 1.75;
+      padding: 0 0 60px;
+    }
+    header {
+      position: sticky; top: 0;
+      background: rgba(10,10,18,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px;
+      display: flex; align-items: center; gap: 12px;
+      z-index: 100;
+    }
+    header a {
+      color: var(--accent); text-decoration: none; font-size: 0.85rem;
+    }
+    header h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      flex: 1;
+    }
+    .container { max-width: 680px; margin: 0 auto; padding: 32px 20px; }
+    .updated {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 32px;
+    }
+    h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin: 32px 0 10px;
+      color: var(--text);
+    }
+    h2:first-of-type { margin-top: 0; }
+    p { color: rgba(240,240,248,0.8); margin-bottom: 12px; }
+    ul { padding-left: 20px; color: rgba(240,240,248,0.8); margin-bottom: 12px; }
+    li { margin-bottom: 6px; }
+    a { color: var(--accent); }
+    .highlight {
+      background: rgba(0,102,255,0.08);
+      border: 1px solid rgba(0,102,255,0.2);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 16px 0;
+      font-size: 0.88rem;
+      color: rgba(240,240,248,0.9);
+    }
+    hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="../index.html">← Voltar</a>
+  <h1>Termos de Uso</h1>
+</header>
+
+<div class="container">
+  <p class="updated">Última atualização: abril de 2025 · Versão 1.1</p>
+
+  <div class="highlight">
+    Ao criar uma conta ou usar o Finno, você concorda com os presentes Termos. Leia com atenção — eles definem seus direitos e responsabilidades como usuário.
+  </div>
+
+  <h2>1. O Serviço</h2>
+  <p>O Finno é um aplicativo de gestão financeira pessoal que permite registrar receitas e despesas, definir metas e, nos planos pagos, conectar contas bancárias via Open Finance regulado pelo Banco Central do Brasil (BCB).</p>
+  <p>O Finno é fornecido "como está" para uso pessoal, não comercial. Não somos uma instituição financeira e não realizamos operações de crédito, câmbio ou pagamentos.</p>
+
+  <h2>2. Planos e Funcionalidades</h2>
+  <ul>
+    <li><strong>Grátis:</strong> lançamentos manuais, categorias, metas financeiras e relatórios básicos. Inclui anúncios não intrusivos.</li>
+    <li><strong>Plus (R$ 9,90/mês):</strong> tudo do Grátis, sem anúncios.</li>
+    <li><strong>Pro (R$ 14,90/mês):</strong> tudo do Plus, mais insights e análises com Inteligência Artificial.</li>
+    <li><strong>Premium (R$ 19,90/mês):</strong> tudo do Pro, mais conexão automática com até 2 contas bancárias via Open Finance.</li>
+    <li><strong>Trial de 7 dias:</strong> acesso completo ao Premium gratuitamente, disponível após engajamento mínimo com o app (3 lançamentos ou 1 meta criada).</li>
+  </ul>
+  <p>Os preços podem ser reajustados com aviso prévio de 30 dias por e-mail.</p>
+
+  <h2>3. Cadastro e Segurança da Conta</h2>
+  <p>Para usar o Finno você deve fornecer informações verdadeiras, incluindo nome completo, CPF válido e e-mail ou número de celular. O CPF é armazenado exclusivamente como hash criptográfico (SHA-256) e nunca em texto legível.</p>
+  <p>Você é responsável por manter sua senha em sigilo e por todas as atividades realizadas em sua conta. Em caso de acesso não autorizado, notifique-nos imediatamente pelo e-mail <a href="mailto:suporte@finnoapp.com.br">suporte@finnoapp.com.br</a>.</p>
+
+  <h2>4. Conexão Bancária (Open Finance)</h2>
+  <p>Nos planos Premium e Trial, a conexão bancária é realizada por meio da Pluggy, instituição de pagamento autorizada pelo BCB a operar no ecossistema Open Finance. A Pluggy atua como intermediária técnica; o Finno nunca armazena credenciais bancárias nem tem acesso a senhas de contas.</p>
+  <p>A conexão é apenas de leitura — o Finno não realiza transferências, pagamentos ou qualquer movimentação financeira em seu nome.</p>
+
+  <h2>5. Dados Armazenados Localmente</h2>
+  <p>Suas transações, metas e preferências são armazenadas no seu próprio dispositivo (localStorage do navegador) e não são enviadas para servidores do Finno. Isso significa que limpar os dados do navegador apagará seu histórico financeiro. Recomendamos usar o mesmo dispositivo de forma consistente.</p>
+
+  <h2>6. Cancelamento e Exclusão de Conta</h2>
+  <p>Você pode cancelar sua assinatura a qualquer momento sem multa, com efeito no próximo ciclo de cobrança. Pode também excluir sua conta permanentemente pelo menu "Conta" no app. A exclusão remove:</p>
+  <ul>
+    <li>Seu perfil do Firestore (nome, e-mail, telefone)</li>
+    <li>O registro de unicidade de CPF</li>
+    <li>Todos os dados locais no seu dispositivo</li>
+    <li>Sua conta de autenticação Firebase</li>
+  </ul>
+  <p>Dados eliminados não podem ser recuperados. Este direito está previsto no art. 18, VI da Lei Geral de Proteção de Dados (LGPD).</p>
+
+  <h2>7. Propriedade Intelectual</h2>
+  <p>O código, design, marca e conteúdo do Finno são de propriedade exclusiva dos seus criadores. É vedado copiar, redistribuir ou criar produtos derivados sem autorização expressa por escrito.</p>
+
+  <h2>8. Limitação de Responsabilidade</h2>
+  <p>O Finno fornece informações e análises de natureza educacional. Nenhuma informação do app constitui conselho financeiro, jurídico ou tributário. Não nos responsabilizamos por decisões tomadas com base nos dados exibidos.</p>
+  <p>Nossa responsabilidade total por danos diretos está limitada ao valor pago pelo usuário nos 3 meses anteriores ao evento.</p>
+
+  <h2>9. Alterações nos Termos</h2>
+  <p>Podemos atualizar estes Termos periodicamente. Alterações materiais serão comunicadas por e-mail ou notificação no app com pelo menos 15 dias de antecedência. O uso continuado após a vigência das alterações implica aceitação.</p>
+
+  <h2>10. Foro e Lei Aplicável</h2>
+  <p>Estes Termos são regidos pelas leis da República Federativa do Brasil. Fica eleito o foro da Comarca de São Paulo/SP para dirimir quaisquer controvérsias, com renúncia a qualquer outro, por mais privilegiado que seja.</p>
+
+  <hr>
+  <p style="font-size:0.8rem;color:var(--muted)">Dúvidas? Entre em contato: <a href="mailto:suporte@finnoapp.com.br">suporte@finnoapp.com.br</a></p>
+</div>
+
+</body>
+</html>

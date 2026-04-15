@@ -8,7 +8,7 @@ import {
   auth, db,
   doc, setDoc,
   getPlanState, getTrialDaysLeft, getBankLimit, hasAI, hasBanks,
-  getPluggyConnectToken
+  getPluggyConnectToken, savePlanToFirestore
 } from './api.js';
 
 // ── DOM helpers (resolved via window, set by app.js) ─────────────
@@ -26,32 +26,37 @@ window.connectedItems = window.connectedItems || [];
 
 // ── Trial eligibility rules ───────────────────────────────────────
 // Controla quando o trial de 7 dias pode ser ativado.
-// Regra: ≥3 lançamentos manuais, OU ≥1 meta, OU visitou dashboard + tentou conectar banco.
-const TRIAL_RULES_KEY = 'finno_trial_rules';
+// Regra: ≥3 lançamentos manuais OU ≥1 meta.
+// Chave isolada por uid para evitar vazamento entre usuários no mesmo browser.
+
+function trialRulesKey() {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return null;
+  return 'finno_trial_rules_' + uid;
+}
 
 function getTrialRules() {
+  const key = trialRulesKey();
+  if (!key) return { manualEntriesCount: 0, goalsCount: 0, trialUnlocked: false };
   try {
-    const raw = localStorage.getItem(TRIAL_RULES_KEY);
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : {
-      manualEntriesCount: 0, goalsCount: 0,
-      hasVisitedDashboard: false, hasAttemptedBankConnection: false,
-      trialUnlocked: false
+      manualEntriesCount: 0, goalsCount: 0, trialUnlocked: false
     };
   } catch (e) {
-    return { manualEntriesCount: 0, goalsCount: 0, hasVisitedDashboard: false, hasAttemptedBankConnection: false, trialUnlocked: false };
+    return { manualEntriesCount: 0, goalsCount: 0, trialUnlocked: false };
   }
 }
 
 function saveTrialRules(rules) {
-  localStorage.setItem(TRIAL_RULES_KEY, JSON.stringify(rules));
+  const key = trialRulesKey();
+  if (!key) return;
+  localStorage.setItem(key, JSON.stringify(rules));
 }
 
 function evaluateTrialEligibility() {
   const rules = getTrialRules();
-  const eligible =
-    rules.manualEntriesCount >= 3 ||
-    rules.goalsCount >= 1 ||
-    (rules.hasVisitedDashboard && rules.hasAttemptedBankConnection);
+  const eligible = rules.manualEntriesCount >= 3 || rules.goalsCount >= 1;
   rules.trialUnlocked = eligible;
   saveTrialRules(rules);
   return eligible;
@@ -68,22 +73,6 @@ function incrementManualEntriesCount() {
 function incrementGoalsCount() {
   const rules = getTrialRules();
   rules.goalsCount += 1;
-  saveTrialRules(rules);
-  evaluateTrialEligibility();
-}
-
-function markDashboardVisited() {
-  const rules = getTrialRules();
-  if (rules.hasVisitedDashboard) return; // já registrado, sem reescrita
-  rules.hasVisitedDashboard = true;
-  saveTrialRules(rules);
-  evaluateTrialEligibility();
-}
-
-function markBankConnectionIntent() {
-  const rules = getTrialRules();
-  if (rules.hasAttemptedBankConnection) return; // já registrado
-  rules.hasAttemptedBankConnection = true;
   saveTrialRules(rules);
   evaluateTrialEligibility();
 }
@@ -220,7 +209,6 @@ window.runLoadingSequence = runLoadingSequence;
 
 // ── Build dashboard ───────────────────────────────────────────────
 export function buildDashboard() {
-  markDashboardVisited(); // registrar uso real do dashboard (critério de elegibilidade do trial)
   loadUserData();
   buildHomePanel();
   buildChart();
@@ -871,6 +859,7 @@ export function startTrial() {
   setTimeout(() => {
     localStorage.setItem('finno_plan_'+uid,'trial');
     localStorage.setItem('finno_trial_start_'+uid, Date.now().toString());
+    savePlanToFirestore(uid, 'trial');
     currentPlan = 'trial';
     showConnectState('trial', uid);
     toast('✓ Trial ativado! Conecte seu banco agora.','success');
@@ -882,7 +871,10 @@ export function skipToFree() {
   const uid = auth.currentUser?.uid;
   if (uid) {
     const cur = localStorage.getItem('finno_plan_'+uid);
-    if (!cur || cur === 'none') localStorage.setItem('finno_plan_'+uid,'free');
+    if (!cur || cur === 'none') {
+      localStorage.setItem('finno_plan_'+uid,'free');
+      savePlanToFirestore(uid, 'free');
+    }
     localStorage.setItem('finno_setup_'+uid,'1');
   }
   currentPlan = 'free';
@@ -894,7 +886,11 @@ window.skipToFree = skipToFree;
 export function choosePlan(plan) {
   if (['plus','pro','premium'].includes(plan)) { showPlanPayment(plan); return; }
   const uid = auth.currentUser?.uid;
-  if (uid) { localStorage.setItem('finno_plan_'+uid,'free'); localStorage.setItem('finno_setup_'+uid,'1'); }
+  if (uid) {
+    localStorage.setItem('finno_plan_'+uid,'free');
+    localStorage.setItem('finno_setup_'+uid,'1');
+    savePlanToFirestore(uid, 'free');
+  }
   currentPlan = 'free';
   showScreen('screen-loading');
   runLoadingSequence(() => { showScreen('screen-dashboard'); buildDashboard(); applyPlanUI('free'); });
@@ -998,6 +994,7 @@ export function processPayment() {
       }
     }
     const activePlan = hasTrial ? 'trial' : planId;
+    if (uid) savePlanToFirestore(uid, activePlan);
     currentPlan = activePlan;
     document.getElementById('payment-overlay')?.remove();
     toast(`✓ ${planDef.label} ativado! Bem-vindo 🚀`, 'success');
@@ -1105,7 +1102,10 @@ window.applyPlanUI = applyPlanUI;
 export function confirmCancelPremium() {
   if (!confirm('Tem certeza que deseja cancelar o Premium?')) return;
   const uid = auth.currentUser?.uid;
-  if (uid) localStorage.setItem('finno_plan_'+uid,'free');
+  if (uid) {
+    localStorage.setItem('finno_plan_'+uid,'free');
+    savePlanToFirestore(uid, 'free');
+  }
   currentPlan = 'free';
   closeModal('modal-account');
   applyPlanUI('free');
@@ -1116,7 +1116,6 @@ window.confirmCancelPremium = confirmCancelPremium;
 export function goToBankConnect() {
   const uid = auth.currentUser?.uid;
   const state = getPlanState(uid);
-  markBankConnectionIntent(); // registrar que o usuário tentou acessar conexão bancária
   showScreen('screen-connect');
   showConnectState(state, uid);
 }

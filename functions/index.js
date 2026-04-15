@@ -12,6 +12,15 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret }       = require('firebase-functions/params');
 const { initializeApp }      = require('firebase-admin/app');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth }            = require('firebase-admin/auth');
+const crypto                 = require('crypto');
+
+// Gera hash SHA-256 do CPF (apenas dígitos) — idêntico ao algoritmo do frontend.
+function hashCPF(cpf) {
+  const clean = cpf.replace(/\D/g, '');
+  return crypto.createHash('sha256').update(clean).digest('hex');
+}
 
 initializeApp();
 
@@ -37,6 +46,18 @@ exports.getPluggyAccessToken = onCall(
     // Garante que a requisição vem de um usuário autenticado
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Autenticação necessária.');
+    }
+
+    // Valida plano via Firestore — mesma lógica de createPluggyConnectToken.
+    // A API key Pluggy permite acesso a dados financeiros, não deve ser exposta a planos free.
+    const db = getFirestore();
+    const userSnap = await db.collection('users').doc(request.auth.uid).get();
+    const plan = userSnap.exists ? userSnap.data().plan : null;
+    if (!['trial', 'premium'].includes(plan)) {
+      throw new HttpsError(
+        'permission-denied',
+        'Plano Premium ou Trial necessário para acessar dados bancários.'
+      );
     }
 
     try {
@@ -98,6 +119,14 @@ exports.createPluggyConnectToken = onCall(
     }
     const uid = request.auth.uid;
 
+    // Valida plano via Firestore — não confia em nada vindo do frontend
+    const db = getFirestore();
+    const userSnap = await db.collection('users').doc(uid).get();
+    const plan = userSnap.exists ? userSnap.data().plan : null;
+    if (!['trial', 'premium'].includes(plan)) {
+      throw new HttpsError('permission-denied', 'Plano Premium ou Trial necessário para conectar bancos.');
+    }
+
     try {
       // Passo 1: trocar credenciais por apiKey
       const authRes = await fetch('https://api.pluggy.ai/auth', {
@@ -138,5 +167,178 @@ exports.createPluggyConnectToken = onCall(
       console.error('createPluggyConnectToken erro inesperado:', err);
       throw new HttpsError('internal', 'Erro interno. Tente novamente.');
     }
+  }
+);
+
+/**
+ * checkCPFUnique
+ *
+ * Verifica se um CPF ainda não está registrado, usando hash SHA-256.
+ * Roda no servidor para que a collection `cpfs` nunca seja acessível pelo cliente.
+ *
+ * @param {{ cpf: string }} data — CPF em qualquer formatação
+ * @returns {{ available: boolean }}
+ */
+exports.checkCPFUnique = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Autenticação necessária.');
+    }
+    const cpf = (request.data?.cpf || '').replace(/\D/g, '');
+    if (cpf.length !== 11) {
+      throw new HttpsError('invalid-argument', 'CPF inválido.');
+    }
+    const hash = hashCPF(cpf);
+    const db = getFirestore();
+    const snap = await db.collection('cpfs').doc(hash).get();
+    return { available: !snap.exists };
+  }
+);
+
+/**
+ * saveCPF
+ *
+ * Registra o hash SHA-256 do CPF na collection `cpfs` (verificando unicidade)
+ * e grava o hash como backup no documento `users/{uid}` do próprio usuário.
+ * Ambas as operações usam Admin SDK — invisíveis para as Firestore Rules.
+ *
+ * @param {{ cpf: string }} data
+ * @returns {{ success: boolean, cpfHash: string }}
+ */
+exports.saveCPF = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Autenticação necessária.');
+    }
+    const uid = request.auth.uid;
+    const cpf = (request.data?.cpf || '').replace(/\D/g, '');
+    if (cpf.length !== 11) {
+      throw new HttpsError('invalid-argument', 'CPF inválido.');
+    }
+
+    const hash = hashCPF(cpf);
+    const db = getFirestore();
+    const cpfRef = db.collection('cpfs').doc(hash);
+
+    // Verifica novamente no servidor para evitar race condition
+    const snap = await cpfRef.get();
+    if (snap.exists) {
+      throw new HttpsError('already-exists', 'Este CPF já está cadastrado.');
+    }
+
+    await cpfRef.set({ uid, createdAt: FieldValue.serverTimestamp() });
+    await db.collection('users').doc(uid).set(
+      { cpfHash: hash },
+      { merge: true }
+    );
+
+    return { success: true, cpfHash: hash };
+  }
+);
+
+/**
+ * deleteAccount
+ *
+ * Exclui os documentos Firestore do usuário (`users/{uid}` e `cpfs/{cpfHash}`).
+ * O cliente deve chamar esta função ANTES de `user.delete()` e depois limpar o localStorage.
+ * Operações via Admin SDK — não sujeitas às Firestore Rules.
+ *
+ * @returns {{ success: boolean }}
+ */
+exports.deleteAccount = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Autenticação necessária.');
+    }
+    const uid = request.auth.uid;
+    const db = getFirestore();
+
+    // Localizar hash do CPF no perfil do usuário
+    const userSnap = await db.collection('users').doc(uid).get();
+    const cpfHash = userSnap.exists ? userSnap.data()?.cpfHash : null;
+
+    // Deletar documentos Firestore (ordem: cpfs primeiro, depois users)
+    if (cpfHash) {
+      await db.collection('cpfs').doc(cpfHash).delete();
+    }
+    await db.collection('users').doc(uid).delete();
+
+    // Deletar conta Firebase Auth via Admin SDK.
+    // Admin SDK não exige sessão recente — elimina o risco de auth/requires-recent-login
+    // que existia quando o cliente chamava user.delete() após a limpeza do Firestore.
+    await getAuth().deleteUser(uid);
+
+    return { success: true };
+  }
+);
+
+/**
+ * setPlan
+ *
+ * Grava o plano do usuário em `users/{uid}.plan` via Admin SDK.
+ * Somente planos gratuitos (`free`, `trial`) podem ser definidos pelo cliente.
+ * Planos pagos (`plus`, `pro`, `premium`) exigem webhook de pagamento — este endpoint
+ * os rejeita explicitamente para evitar bypass da cobrança.
+ *
+ * @param {{ plan: string }} data
+ * @returns {{ success: boolean }}
+ */
+exports.setPlan = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Autenticação necessária.');
+    }
+    const uid = request.auth.uid;
+    const plan = request.data?.plan;
+
+    // Somente planos gratuitos podem ser ativados diretamente pelo cliente.
+    // Planos pagos requerem confirmação de pagamento via webhook.
+    const clientAllowedPlans = ['free', 'trial'];
+    if (!clientAllowedPlans.includes(plan)) {
+      throw new HttpsError(
+        'permission-denied',
+        'Planos pagos requerem confirmação de pagamento.'
+      );
+    }
+
+    const db = getFirestore();
+
+    // Validações adicionais para ativação de trial
+    if (plan === 'trial') {
+      const snap = await db.collection('users').doc(uid).get();
+      const data = snap.exists ? snap.data() : {};
+
+      // Um trial por conta — trialStart é timestamp autoritativo gravado pelo servidor
+      if (data.trialStart) {
+        throw new HttpsError(
+          'already-exists',
+          'O período de trial já foi utilizado nesta conta.'
+        );
+      }
+
+      // Contas já em plano pago não podem ativar trial
+      if (['plus', 'pro', 'premium'].includes(data.plan)) {
+        throw new HttpsError(
+          'permission-denied',
+          'Conta já possui plano pago. Trial não está disponível.'
+        );
+      }
+    }
+
+    // Gravar plano; trial inclui trialStart com timestamp do servidor
+    await db.collection('users').doc(uid).set(
+      {
+        plan,
+        planUpdatedAt: FieldValue.serverTimestamp(),
+        ...(plan === 'trial' ? { trialStart: FieldValue.serverTimestamp() } : {}),
+      },
+      { merge: true }
+    );
+
+    return { success: true };
   }
 );
