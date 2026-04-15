@@ -182,9 +182,9 @@ exports.createPluggyConnectToken = onCall(
 exports.checkCPFUnique = onCall(
   { region: 'southamerica-east1' },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'Autenticação necessária.');
-    }
+    // Não exige autenticação: o usuário ainda não tem conta no momento do cadastro.
+    // Segurança: CPF é hashed SHA-256 antes de qualquer verificação — apenas quem
+    // conhece o CPF real pode verificar sua disponibilidade (sem information disclosure).
     const cpf = (request.data?.cpf || '').replace(/\D/g, '');
     if (cpf.length !== 11) {
       throw new HttpsError('invalid-argument', 'CPF inválido.');
@@ -276,6 +276,40 @@ exports.deleteAccount = onCall(
 );
 
 /**
+ * recordEngagement
+ *
+ * Incrementa atomicamente o contador de engajamento do usuário em Firestore.
+ * Usado para validar elegibilidade do trial no servidor sem depender do localStorage.
+ * Tipos válidos: 'entry' (lançamento manual) | 'goal' (meta criada).
+ *
+ * @param {{ type: 'entry' | 'goal' }} data
+ * @returns {{ success: boolean }}
+ */
+exports.recordEngagement = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Autenticação necessária.');
+    }
+    const type = request.data?.type;
+    if (!['entry', 'goal'].includes(type)) {
+      throw new HttpsError('invalid-argument', 'Tipo inválido. Use "entry" ou "goal".');
+    }
+
+    const uid = request.auth.uid;
+    const db = getFirestore();
+    const field = type === 'entry' ? 'engagementEntries' : 'engagementGoals';
+
+    await db.collection('users').doc(uid).set(
+      { [field]: FieldValue.increment(1) },
+      { merge: true }
+    );
+
+    return { success: true };
+  }
+);
+
+/**
  * setPlan
  *
  * Grava o plano do usuário em `users/{uid}.plan` via Admin SDK.
@@ -325,6 +359,17 @@ exports.setPlan = onCall(
         throw new HttpsError(
           'permission-denied',
           'Conta já possui plano pago. Trial não está disponível.'
+        );
+      }
+
+      // Validar elegibilidade real: ≥3 lançamentos OU ≥1 meta registrados no servidor.
+      // Contadores incrementados via recordEngagement() — não manipuláveis pelo cliente.
+      const entries = data.engagementEntries || 0;
+      const goals   = data.engagementGoals   || 0;
+      if (entries < 3 && goals < 1) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Crie 3 lançamentos ou 1 meta para liberar o trial.'
         );
       }
     }

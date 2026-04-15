@@ -203,7 +203,7 @@ async function doLogin() {
     // onAuthStateChanged in app.js handles navigation for verified users
   } catch (e) {
     showErr('login-error', firebaseErrPT(e.code));
-    if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Acessar minha conta →'; }
   }
 }
 window.doLogin = doLogin;

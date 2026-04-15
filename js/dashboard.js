@@ -8,7 +8,7 @@ import {
   auth, db,
   doc, setDoc,
   getPlanState, getTrialDaysLeft, getBankLimit, hasAI, hasBanks,
-  getPluggyConnectToken, savePlanToFirestore
+  getPluggyConnectToken, savePlanToFirestore, recordEngagementViaCloud
 } from './api.js';
 
 // ── DOM helpers (resolved via window, set by app.js) ─────────────
@@ -528,7 +528,8 @@ export function addTransaction() {
   const txDateEl = document.getElementById('tx-date');
   if (txDateEl) txDateEl.value = '';
   toast('Transação adicionada! ✓', 'success');
-  incrementManualEntriesCount(); // contabilizar para elegibilidade do trial
+  incrementManualEntriesCount(); // contabilizar localmente para elegibilidade do trial
+  recordEngagementViaCloud('entry'); // espelhar no servidor para validação server-side
 }
 window.addTransaction = addTransaction;
 
@@ -557,7 +558,8 @@ export function addGoal() {
   const typeEl = document.getElementById('goal-type'); if(typeEl) typeEl.value='outros';
   const dateEl = document.getElementById('goal-end-date'); if(dateEl) dateEl.value='';
   toast('Meta criada! ✓', 'success');
-  incrementGoalsCount(); // contabilizar para elegibilidade do trial
+  incrementGoalsCount(); // contabilizar localmente para elegibilidade do trial
+  recordEngagementViaCloud('goal'); // espelhar no servidor para validação server-side
 }
 window.addGoal = addGoal;
 

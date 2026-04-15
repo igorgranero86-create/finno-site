@@ -189,6 +189,19 @@ export async function fetchPluggyData() {
   }
 }
 
+// ── Engagement tracking via Cloud Function ────────────────────────
+// Incrementa contador server-side para validação de elegibilidade do trial.
+// type: 'entry' (lançamento manual) | 'goal' (meta criada)
+export async function recordEngagementViaCloud(type) {
+  try {
+    const fn = httpsCallable(functions, 'recordEngagement');
+    await fn({ type });
+  } catch (e) {
+    // Falha silenciosa — não bloqueia o fluxo do usuário, apenas não contabiliza
+    console.warn('Engagement record failed:', e.message);
+  }
+}
+
 // ── Account deletion via Cloud Function ──────────────────────────
 // Deleta users/{uid} e cpfs/{cpfHash} via Admin SDK (ignora Firestore Rules).
 // O cliente deve chamar isso ANTES de user.delete() e depois limpar o localStorage.

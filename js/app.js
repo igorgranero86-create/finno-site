@@ -86,16 +86,35 @@ onAuthStateChanged(auth, async user => {
     setAvatar(user);
     const uid = user.uid;
 
+    // Ler perfil do Firestore uma única vez — usado para verificação de e-mail,
+    // sync de plano e check de conta demo.
+    let userProfile = null;
+    try {
+      const snap = await getDoc(doc(db, 'users', uid));
+      if (snap.exists()) userProfile = snap.data();
+    } catch (_) {}
+
+    // Sincronizar plano do Firestore para localStorage.
+    // Firestore é a fonte de verdade — impede que manipulação de localStorage
+    // desbloqueie funcionalidades de planos pagos.
+    // Exceção: conta do desenvolvedor mantém premium local.
+    const isDevAccount = ['igorgranero86@gmail.com'].includes(user.email);
+    if (!isDevAccount && userProfile?.plan) {
+      localStorage.setItem('finno_plan_' + uid, userProfile.plan);
+      // Restaurar trialStart do Firestore (caso localStorage tenha sido limpo)
+      if (userProfile.trialStart) {
+        const ms = userProfile.trialStart.toMillis?.()
+          ?? (userProfile.trialStart.seconds * 1000);
+        localStorage.setItem('finno_trial_start_' + uid, ms.toString());
+      }
+    }
+
     // Email/password users must verify their email before proceeding.
     // Exception: contas demo criadas com IS_DEMO_MODE=true têm demoMode:true no Firestore
     // (não no localStorage — evita bypass via DevTools).
     const provider = user.providerData[0]?.providerId;
     if (provider === 'password' && !user.emailVerified) {
-      let isDemoAccount = false;
-      try {
-        const snap = await getDoc(doc(db, 'users', user.uid));
-        isDemoAccount = snap.exists() && snap.data()?.demoMode === true;
-      } catch (_) {}
+      const isDemoAccount = userProfile?.demoMode === true;
       if (!isDemoAccount) {
         const subEl = document.getElementById('verify-email-sub');
         if (subEl) subEl.textContent = `Confirme o e-mail enviado para ${user.email}.`;
@@ -106,7 +125,7 @@ onAuthStateChanged(auth, async user => {
     }
 
     // Developer always gets premium
-    if (['igorgranero86@gmail.com'].includes(user.email)) {
+    if (isDevAccount) {
       localStorage.setItem('finno_plan_' + uid, 'premium');
       localStorage.setItem('finno_setup_' + uid, '1');
     }
