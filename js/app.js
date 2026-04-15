@@ -79,7 +79,7 @@ export function setAvatar(user) {
 window.setAvatar = setAvatar;
 
 // ── Auth state observer ───────────────────────────────────────────
-onAuthStateChanged(auth, user => {
+onAuthStateChanged(auth, async user => {
   const loader = document.getElementById('app-loading');
 
   if (user) {
