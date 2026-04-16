@@ -210,6 +210,21 @@ export async function deleteAccountViaCloud() {
   await fn(); // lança HttpsError se o usuário não estiver autenticado ou ocorrer erro
 }
 
+// ── Stripe Checkout ───────────────────────────────────────────────
+// Cria sessão Stripe Checkout via Cloud Function e retorna a URL de redirect.
+// successUrl e cancelUrl são opcionais — a CF usa app-fino.web.app como fallback.
+export async function createCheckoutSessionViaCloud(planId, successUrl, cancelUrl) {
+  try {
+    const fn = httpsCallable(functions, 'createCheckoutSession');
+    const result = await fn({ planId, successUrl, cancelUrl });
+    return result.data?.url || null;
+  } catch (e) {
+    console.error('Erro ao criar checkout session:', e.message);
+    throw e; // Relança para o caller exibir toast de erro
+  }
+}
+window.createCheckoutSessionViaCloud = createCheckoutSessionViaCloud;
+
 // ── Pluggy Connect Token ──────────────────────────────────────────
 // Gera um Connect Token via Cloud Function para abrir o widget Pluggy Connect.
 // Lança erro se o usuário não estiver autenticado ou se a função falhar.

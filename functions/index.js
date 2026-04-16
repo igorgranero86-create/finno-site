@@ -9,12 +9,13 @@
 //   firebase functions:secrets:set PLUGGY_CLIENT_SECRET
 // ================================================================
 
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret }       = require('firebase-functions/params');
 const { initializeApp }      = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth }            = require('firebase-admin/auth');
 const crypto                 = require('crypto');
+const billing                = require('./billing');
 
 // Gera hash SHA-256 do CPF (apenas dígitos) — idêntico ao algoritmo do frontend.
 function hashCPF(cpf) {
@@ -27,6 +28,13 @@ initializeApp();
 // Referências aos secrets — valores só acessíveis em runtime, no servidor
 const pluggyClientId     = defineSecret('PLUGGY_CLIENT_ID');
 const pluggyClientSecret = defineSecret('PLUGGY_CLIENT_SECRET');
+
+// Secrets Stripe
+const stripeSecretKey     = defineSecret('STRIPE_SECRET_KEY');
+const stripeWebhookSecret = defineSecret('STRIPE_WEBHOOK_SECRET');
+const stripePricePlus     = defineSecret('STRIPE_PRICE_PLUS');
+const stripePricePro      = defineSecret('STRIPE_PRICE_PRO');
+const stripePricePremium  = defineSecret('STRIPE_PRICE_PREMIUM');
 
 /**
  * getPluggyAccessToken
@@ -374,16 +382,154 @@ exports.setPlan = onCall(
       }
     }
 
-    // Gravar plano; trial inclui trialStart com timestamp do servidor
+    // Gravar plano; trial inclui trialStart e trialUsed com timestamp do servidor
     await db.collection('users').doc(uid).set(
       {
         plan,
+        planStatus: 'active',
         planUpdatedAt: FieldValue.serverTimestamp(),
-        ...(plan === 'trial' ? { trialStart: FieldValue.serverTimestamp() } : {}),
+        ...(plan === 'trial' ? { trialStart: FieldValue.serverTimestamp(), trialUsed: true } : {}),
       },
       { merge: true }
     );
 
     return { success: true };
+  }
+);
+
+/**
+ * createCheckoutSession
+ *
+ * Função Callable (requer usuário autenticado).
+ * Cria uma sessão Stripe Checkout para o plano solicitado.
+ * Valida que o plano é pago e que o usuário não tem assinatura ativa.
+ *
+ * @param {{ planId: string, successUrl?: string, cancelUrl?: string }} data
+ * @returns {{ url: string }}
+ */
+exports.createCheckoutSession = onCall(
+  {
+    region: 'southamerica-east1',
+    secrets: [stripeSecretKey, stripePricePlus, stripePricePro, stripePricePremium],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Autenticação necessária.');
+    }
+    const uid    = request.auth.uid;
+    const planId = request.data?.planId;
+
+    const VALID_PLANS = ['plus', 'pro', 'premium'];
+    if (!VALID_PLANS.includes(planId)) {
+      throw new HttpsError('invalid-argument', 'Plano inválido.');
+    }
+
+    // Verificar se já tem plano pago ativo (anti-double-subscription)
+    const db = getFirestore();
+    const snap = await db.collection('users').doc(uid).get();
+    const data = snap.exists ? snap.data() : {};
+    if (VALID_PLANS.includes(data.plan) && data.planStatus === 'active') {
+      throw new HttpsError('already-exists', 'Você já possui um plano ativo.');
+    }
+
+    // Mapear planId → priceId do Stripe
+    const priceMap = {
+      plus:    stripePricePlus.value(),
+      pro:     stripePricePro.value(),
+      premium: stripePricePremium.value(),
+    };
+    const priceId = priceMap[planId];
+
+    const baseUrl    = 'https://app-fino.web.app';
+    const successUrl = (request.data?.successUrl || baseUrl) + '?payment=success';
+    const cancelUrl  = (request.data?.cancelUrl  || baseUrl) + '?payment=cancel';
+
+    const user = await getAuth().getUser(uid);
+
+    try {
+      const { url } = await billing.createCheckoutSession({
+        planId, uid, email: user.email,
+        successUrl, cancelUrl,
+        secretKey: stripeSecretKey.value(),
+        priceId,
+      });
+      return { url };
+    } catch (err) {
+      console.error('createCheckoutSession erro:', err);
+      throw new HttpsError('internal', 'Erro ao criar sessão de pagamento.');
+    }
+  }
+);
+
+/**
+ * billingWebhook
+ *
+ * Função HTTP (onRequest) chamada pelo Stripe após eventos de pagamento.
+ * Valida a assinatura Stripe antes de processar qualquer dado.
+ * Atualiza users/{uid} e mantém o índice customers/{customerId}.
+ */
+exports.billingWebhook = onRequest(
+  {
+    region: 'southamerica-east1',
+    secrets: [stripeSecretKey, stripeWebhookSecret],
+  },
+  async (req, res) => {
+    if (req.method !== 'POST') {
+      res.status(405).send('Method Not Allowed');
+      return;
+    }
+
+    // Verificar assinatura — req.rawBody é Buffer disponível em Firebase Functions v2
+    let event;
+    try {
+      event = billing.constructWebhookEvent(
+        req.rawBody,
+        req.headers['stripe-signature'],
+        stripeWebhookSecret.value()
+      );
+    } catch (err) {
+      console.error('Webhook signature inválida:', err.message);
+      res.status(400).send('Webhook Error: ' + err.message);
+      return;
+    }
+
+    const update = billing.mapEventToPlanUpdate(event);
+    if (!update) {
+      res.status(200).send('ok');
+      return;
+    }
+
+    const db = getFirestore();
+
+    // Resolver uid: eventos de subscription/invoice só trazem customerId
+    let uid = update.uid;
+    if (!uid && update.customerId) {
+      const custSnap = await db.collection('customers').doc(update.customerId).get();
+      uid = custSnap.exists ? custSnap.data()?.uid : null;
+    }
+    if (!uid) {
+      console.warn('billingWebhook: uid não encontrado para evento', event.type, update.customerId);
+      res.status(200).send('uid not found');
+      return;
+    }
+
+    // Montar payload para users/{uid}
+    const payload = { planUpdatedAt: FieldValue.serverTimestamp() };
+    if (update.plan)                         payload.plan            = update.plan;
+    if (update.planStatus)                   payload.planStatus      = update.planStatus;
+    if (update.billingProvider)              payload.billingProvider = update.billingProvider;
+    if (update.subscriptionId !== undefined) payload.subscriptionId  = update.subscriptionId;
+
+    await db.collection('users').doc(uid).set(payload, { merge: true });
+
+    // Manter índice inverso customers/{customerId} → uid para eventos futuros
+    if (update.customerId) {
+      await db.collection('customers').doc(update.customerId).set(
+        { uid, updatedAt: FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+    }
+
+    res.status(200).send('ok');
   }
 );

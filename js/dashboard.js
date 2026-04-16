@@ -8,7 +8,8 @@ import {
   auth, db,
   doc, setDoc,
   getPlanState, getTrialDaysLeft, getBankLimit, hasAI, hasBanks,
-  getPluggyConnectToken, savePlanToFirestore, recordEngagementViaCloud
+  getPluggyConnectToken, savePlanToFirestore, recordEngagementViaCloud,
+  createCheckoutSessionViaCloud
 } from './api.js';
 
 // ── DOM helpers (resolved via window, set by app.js) ─────────────
@@ -964,46 +965,43 @@ export function formatExpiry(input) {
 }
 window.formatExpiry = formatExpiry;
 
-export function processPayment() {
-  const number = document.getElementById('card-number')?.value.replace(/\s/g,'');
-  const expiry = document.getElementById('card-expiry')?.value;
-  const cvv    = document.getElementById('card-cvv')?.value;
-  const name   = document.getElementById('card-name')?.value.trim();
-  const errEl  = document.getElementById('payment-error');
-  if (!number||number.length<13){errEl.textContent='Número inválido.';errEl.style.display='block';return;}
-  if (!expiry||expiry.length<5){errEl.textContent='Validade inválida.';errEl.style.display='block';return;}
-  if (!cvv||cvv.length<3){errEl.textContent='CVV inválido.';errEl.style.display='block';return;}
-  if (!name){errEl.textContent='Informe o nome no cartão.';errEl.style.display='block';return;}
-  errEl.style.display='none';
+export async function processPayment() {
+  const user = auth.currentUser;
+  if (!user) return;
 
   // Descobre qual plano está sendo contratado a partir do overlay
   const planId = document.getElementById('payment-overlay')?.dataset.plan || 'premium';
-  const planDef = PLAN_DEFS[planId] || PLAN_DEFS.premium;
-  const hasTrial = planId === 'premium';
 
-  const btn = document.getElementById('pay-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳ Processando...';
-
-  setTimeout(() => {
-    const uid = auth.currentUser?.uid;
-    if (uid) {
-      localStorage.setItem('finno_plan_'+uid, planId);
-      localStorage.setItem('finno_setup_'+uid, '1');
-      if (hasTrial) {
-        localStorage.setItem('finno_trial_start_'+uid, Date.now().toString());
-        localStorage.setItem('finno_plan_'+uid, 'trial');
-      }
-    }
-    const activePlan = hasTrial ? 'trial' : planId;
-    if (uid) savePlanToFirestore(uid, activePlan);
-    currentPlan = activePlan;
+  // Trial é gratuito — fluxo via setPlan CF (sem Stripe)
+  if (planId === 'trial') {
     document.getElementById('payment-overlay')?.remove();
-    toast(`✓ ${planDef.label} ativado! Bem-vindo 🚀`, 'success');
-    const screen = document.querySelector('.screen.active')?.id;
-    if (screen === 'screen-connect' || screen === 'screen-plan') showConnectState(activePlan, uid);
-    else applyPlanUI(activePlan);
-  }, 2200);
+    await startTrial();
+    return;
+  }
+
+  // Planos pagos: redirecionar para Stripe Checkout
+  const btn = document.getElementById('pay-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Aguarde...'; }
+
+  try {
+    const url = await createCheckoutSessionViaCloud(
+      planId,
+      window.location.origin,
+      window.location.origin
+    );
+    if (url) {
+      window.location.href = url;
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = '🔒 Tentar novamente'; }
+      toast('Erro ao iniciar pagamento. Tente novamente.', 'error');
+    }
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '🔒 Tentar novamente'; }
+    const msg = e.code === 'functions/already-exists'
+      ? 'Você já possui um plano ativo.'
+      : 'Erro ao iniciar pagamento. Tente novamente.';
+    toast(msg, 'error');
+  }
 }
 window.processPayment = processPayment;
 window.simulatePayment = processPayment;

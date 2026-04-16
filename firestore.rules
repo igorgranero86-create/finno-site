@@ -3,10 +3,8 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Campos sensíveis que NUNCA podem ser escritos diretamente pelo cliente.
-    // Somente Cloud Functions com Admin SDK podem alterar esses campos.
-    function isSensitiveField(key) {
-      return key in ['plan', 'planUpdatedAt', 'cpfHash', 'demoMode'];
-    }
+    // Somente Cloud Functions com Admin SDK / billingWebhook podem alterar esses campos.
+    // Inclui campos de plano, billing, CPF, trial, engajamento e flags internas.
 
     // Perfis: leitura apenas do próprio documento.
     // Criação: permitida sem campos sensíveis.
@@ -16,19 +14,32 @@ service cloud.firestore {
 
       allow create: if request.auth != null
                     && request.auth.uid == uid
-                    && !request.resource.data.keys().hasAny(
-                         ['plan', 'planUpdatedAt', 'cpfHash', 'demoMode']);
+                    && !request.resource.data.keys().hasAny([
+                         'plan', 'planStatus', 'planUpdatedAt', 'cpfHash', 'demoMode',
+                         'billingProvider', 'customerId', 'subscriptionId',
+                         'trialUsed', 'engagementEntries', 'engagementGoals'
+                       ]);
 
       allow update: if request.auth != null
                     && request.auth.uid == uid
                     && !request.resource.data.diff(resource.data)
                        .affectedKeys()
-                       .hasAny(['plan', 'planUpdatedAt', 'cpfHash', 'demoMode']);
+                       .hasAny([
+                         'plan', 'planStatus', 'planUpdatedAt', 'cpfHash', 'demoMode',
+                         'billingProvider', 'customerId', 'subscriptionId',
+                         'trialUsed', 'engagementEntries', 'engagementGoals'
+                       ]);
     }
 
     // CPFs: nenhum acesso direto pelo cliente.
     // Toda operação (verificação, registro, exclusão) passa por Cloud Functions.
     match /cpfs/{cpfHash} {
+      allow read, write: if false;
+    }
+
+    // Índice inverso Stripe customer → Firebase UID.
+    // Escrito apenas pela CF billingWebhook via Admin SDK.
+    match /customers/{customerId} {
       allow read, write: if false;
     }
 

@@ -303,3 +303,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
+
+// ── Retorno do Stripe Checkout ────────────────────────────────────
+// Lê ?payment=success|cancel após redirect do Stripe e limpa a URL.
+// O toast é exibido depois que o dashboard carrega (via window._pendingPaymentToast).
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const payment = params.get('payment');
+  if (payment === 'success' || payment === 'cancel') {
+    history.replaceState({}, '', window.location.pathname);
+    window._pendingPaymentToast = payment;
+  }
+})();
