@@ -128,19 +128,26 @@ let goals = [];          // user's goals
 // (dados de demonstração removidos — usar apenas dados reais via Pluggy)
 
 // ── Persist user data ─────────────────────────────────────────────
+// ✅ PRODUÇÃO: localStorage funciona como cache offline-first para MVP.
+// 🔜 MIGRAÇÃO FUTURA: substituir localStorage por Firestore subcollections:
+//   users/{uid}/transactions/{txId}  e  users/{uid}/goals/{goalId}
+//   Manter localStorage como cache local após a migração.
 function saveTransactions() {
   const uid = auth.currentUser?.uid;
   if (uid) localStorage.setItem('finno_tx_' + uid, JSON.stringify(transactions));
+  // 🔜 MIGRAÇÃO FUTURA: await setDoc(doc(db,'users',uid,'transactions',tx.id), tx)
 }
 
 function saveGoals() {
   const uid = auth.currentUser?.uid;
   if (uid) localStorage.setItem('finno_goals_' + uid, JSON.stringify(goals));
+  // 🔜 MIGRAÇÃO FUTURA: await setDoc(doc(db,'users',uid,'goals',goal.id), goal)
 }
 
 export function loadUserData() {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
+  // 🔜 MIGRAÇÃO FUTURA: getDocs(collection(db,'users',uid,'transactions')) + cache em localStorage
   try {
     const txRaw = localStorage.getItem('finno_tx_' + uid);
     transactions = txRaw ? JSON.parse(txRaw) : [];
@@ -210,6 +217,15 @@ window.runLoadingSequence = runLoadingSequence;
 
 // ── Build dashboard ───────────────────────────────────────────────
 export function buildDashboard() {
+  // Toast de retorno do Stripe — apenas visual, plano vem do Firestore
+  if (window._pendingPaymentToast) {
+    const isSuccess = window._pendingPaymentToast === 'success';
+    const msg = isSuccess
+      ? 'Pagamento recebido! Seu plano será ativado em instantes.'
+      : 'Pagamento cancelado.';
+    setTimeout(() => toast(msg, isSuccess ? 'success' : 'info'), 600);
+    delete window._pendingPaymentToast;
+  }
   loadUserData();
   buildHomePanel();
   buildChart();

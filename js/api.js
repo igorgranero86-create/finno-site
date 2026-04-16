@@ -140,6 +140,9 @@ export async function saveCPF(cpf, uid) {
 export function getPlanState(uid) {
   if (!uid) return 'none';
   const plan = localStorage.getItem('finno_plan_' + uid) || 'none';
+  // planStatus past_due/canceled/inactive → trata como free (acesso bloqueado)
+  const planStatus = localStorage.getItem('finno_plan_status_' + uid);
+  if (['past_due', 'canceled', 'inactive'].includes(planStatus)) return 'free';
   const trialStart = localStorage.getItem('finno_trial_start_' + uid);
   if (plan === 'premium') return 'premium';
   if (plan === 'pro')     return 'pro';

@@ -1,5 +1,11 @@
 # CLAUDE.md — Contexto do Projeto Finno
 
+## Instruções de sessão
+Ao iniciar uma sessão, leia este arquivo e o progresso.md silenciosamente.
+Responda apenas "Pronto" e aguarde instrução.
+
+---
+
 ## Sobre o projeto
 App de finanças pessoais estilo fintech (Nubank-like). SPA mobile-first com autenticação Firebase, conexão bancária via Open Finance (Pluggy API) e insights com IA. Planos: Gratuito (manual) e Premium (automático + IA).
 

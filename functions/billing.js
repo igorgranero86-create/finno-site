@@ -71,6 +71,12 @@ function constructWebhookEvent(rawBody, signature, webhookSecret) {
  * @param {Stripe.Event} event
  * @returns {object|null}
  */
+// ✅ PRODUÇÃO: todos os eventos críticos do ciclo de vida de assinatura Stripe cobertos.
+// checkout.session.completed → ativa plano
+// invoice.paid              → reativa após past_due
+// invoice.payment_failed    → past_due (bloqueia acesso via getPlanState no frontend)
+// subscription.updated      → sincroniza status
+// subscription.deleted      → downgrade para free
 function mapEventToPlanUpdate(event) {
   const obj = event.data.object;
 
@@ -80,7 +86,7 @@ function mapEventToPlanUpdate(event) {
       const planId         = obj.metadata?.planId;
       const customerId     = obj.customer;
       const subscriptionId = obj.subscription;
-      if (!uid || !planId) return null;
+      if (!uid || !PAID_PLANS.includes(planId)) return null;
       return { uid, plan: planId, planStatus: 'active', customerId, subscriptionId, billingProvider: 'stripe' };
     }
 

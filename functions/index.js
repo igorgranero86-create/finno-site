@@ -60,12 +60,22 @@ exports.getPluggyAccessToken = onCall(
     // A API key Pluggy permite acesso a dados financeiros, não deve ser exposta a planos free.
     const db = getFirestore();
     const userSnap = await db.collection('users').doc(request.auth.uid).get();
-    const plan = userSnap.exists ? userSnap.data().plan : null;
+    const userData = userSnap.exists ? userSnap.data() : {};
+    const plan = userData.plan || null;
     if (!['trial', 'premium'].includes(plan)) {
       throw new HttpsError(
         'permission-denied',
         'Plano Premium ou Trial necessário para acessar dados bancários.'
       );
+    }
+    // Verificar expiração do trial no backend — consistente com getPlanState() no frontend
+    if (plan === 'trial') {
+      const trialStart = userData.trialStart;
+      if (!trialStart) throw new HttpsError('permission-denied', 'Trial inválido.');
+      const ms = trialStart.toMillis?.() ?? (trialStart.seconds * 1000);
+      if (Date.now() - ms > 7 * 24 * 60 * 60 * 1000) {
+        throw new HttpsError('permission-denied', 'Período de trial expirado.');
+      }
     }
 
     try {
@@ -130,9 +140,19 @@ exports.createPluggyConnectToken = onCall(
     // Valida plano via Firestore — não confia em nada vindo do frontend
     const db = getFirestore();
     const userSnap = await db.collection('users').doc(uid).get();
-    const plan = userSnap.exists ? userSnap.data().plan : null;
+    const userData = userSnap.exists ? userSnap.data() : {};
+    const plan = userData.plan || null;
     if (!['trial', 'premium'].includes(plan)) {
       throw new HttpsError('permission-denied', 'Plano Premium ou Trial necessário para conectar bancos.');
+    }
+    // Verificar expiração do trial no backend — consistente com getPlanState() no frontend
+    if (plan === 'trial') {
+      const trialStart = userData.trialStart;
+      if (!trialStart) throw new HttpsError('permission-denied', 'Trial inválido.');
+      const ms = trialStart.toMillis?.() ?? (trialStart.seconds * 1000);
+      if (Date.now() - ms > 7 * 24 * 60 * 60 * 1000) {
+        throw new HttpsError('permission-denied', 'Período de trial expirado.');
+      }
     }
 
     try {
@@ -187,12 +207,32 @@ exports.createPluggyConnectToken = onCall(
  * @param {{ cpf: string }} data — CPF em qualquer formatação
  * @returns {{ available: boolean }}
  */
+// Rate limit em memória para checkCPFUnique — ephemeral (reseta em cold start).
+// 🔜 MELHORIA FUTURA: substituir por Firebase App Check para proteção mais robusta.
+const _cpfRateLimitMap = new Map();
+function _checkCpfRateLimit(ip) {
+  const now = Date.now();
+  const recent = (_cpfRateLimitMap.get(ip) || []).filter(t => now - t < 60000);
+  if (recent.length >= 10) return false; // máx 10 verificações por IP por minuto
+  _cpfRateLimitMap.set(ip, [...recent, now]);
+  return true;
+}
+
 exports.checkCPFUnique = onCall(
   { region: 'southamerica-east1' },
   async (request) => {
     // Não exige autenticação: o usuário ainda não tem conta no momento do cadastro.
     // Segurança: CPF é hashed SHA-256 antes de qualquer verificação — apenas quem
     // conhece o CPF real pode verificar sua disponibilidade (sem information disclosure).
+
+    // Proteção básica contra abuso por IP
+    const ip = request.rawRequest?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()
+             || request.rawRequest?.ip
+             || 'unknown';
+    if (!_checkCpfRateLimit(ip)) {
+      throw new HttpsError('resource-exhausted', 'Muitas verificações. Tente novamente em alguns instantes.');
+    }
+
     const cpf = (request.data?.cpf || '').replace(/\D/g, '');
     if (cpf.length !== 11) {
       throw new HttpsError('invalid-argument', 'CPF inválido.');
@@ -494,6 +534,7 @@ exports.billingWebhook = onRequest(
     }
 
     const update = billing.mapEventToPlanUpdate(event);
+    console.log('[webhook] evento recebido:', event.type);
     if (!update) {
       res.status(200).send('ok');
       return;
@@ -508,9 +549,20 @@ exports.billingWebhook = onRequest(
       uid = custSnap.exists ? custSnap.data()?.uid : null;
     }
     if (!uid) {
-      console.warn('billingWebhook: uid não encontrado para evento', event.type, update.customerId);
+      console.warn('[webhook] uid não encontrado para evento', event.type, update.customerId);
       res.status(200).send('uid not found');
       return;
+    }
+    console.log('[webhook] uid identificado:', uid, '| evento:', event.type);
+
+    // Para checkout.session.completed: validar que o uid existe no Firestore
+    if (event.type === 'checkout.session.completed') {
+      const userSnap = await db.collection('users').doc(uid).get();
+      if (!userSnap.exists) {
+        console.warn('[webhook] uid não existe no Firestore — ignorando evento', uid);
+        res.status(200).send('user not found');
+        return;
+      }
     }
 
     // Montar payload para users/{uid}
@@ -519,8 +571,10 @@ exports.billingWebhook = onRequest(
     if (update.planStatus)                   payload.planStatus      = update.planStatus;
     if (update.billingProvider)              payload.billingProvider = update.billingProvider;
     if (update.subscriptionId !== undefined) payload.subscriptionId  = update.subscriptionId;
+    if (update.customerId)                   payload.customerId      = update.customerId;
 
     await db.collection('users').doc(uid).set(payload, { merge: true });
+    console.log('[webhook] plano aplicado:', uid, '| plan:', update.plan ?? '(sem mudança)', '| status:', update.planStatus ?? '(sem mudança)');
 
     // Manter índice inverso customers/{customerId} → uid para eventos futuros
     if (update.customerId) {

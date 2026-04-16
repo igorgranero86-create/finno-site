@@ -101,6 +101,10 @@ onAuthStateChanged(auth, async user => {
     const isDevAccount = ['igorgranero86@gmail.com'].includes(user.email);
     if (!isDevAccount && userProfile?.plan) {
       localStorage.setItem('finno_plan_' + uid, userProfile.plan);
+      // Sincronizar planStatus — past_due/canceled bloqueiam acesso no getPlanState()
+      if (userProfile.planStatus) {
+        localStorage.setItem('finno_plan_status_' + uid, userProfile.planStatus);
+      }
       // Restaurar trialStart do Firestore (caso localStorage tenha sido limpo)
       if (userProfile.trialStart) {
         const ms = userProfile.trialStart.toMillis?.()

@@ -862,7 +862,13 @@ function handlePhotoUpload(input) {
   reader.onload = (e) => {
     const dataUrl = e.target.result;
 
-    // Save to localStorage
+    // ✅ PRODUÇÃO: salva foto em localStorage como base64 (funcional para MVP).
+    // 🔜 MIGRAÇÃO FUTURA: usar Firebase Storage:
+    //   const storageRef = ref(storage, `avatars/${user.uid}`);
+    //   await uploadBytes(storageRef, file);
+    //   const url = await getDownloadURL(storageRef);
+    //   await updateProfile(user, { photoURL: url });
+    //   Remover 'finno_photo_' do localStorage após migração.
     try {
       localStorage.setItem('finno_photo_' + user.uid, dataUrl);
     } catch(ex) {
