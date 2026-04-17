@@ -30,6 +30,31 @@
 - **Modal de upgrade**: 2 opções (Pro e Premium) com preços corretos
 - **Modal de conta**: botões de upgrade para Pro e Premium lado a lado
 
+## ✅ Melhorias de Retenção v3 (sessão atual — 10 features)
+
+| Fase | Feature | Status |
+|---|---|---|
+| FASE 1a | Editar / excluir / duplicar transações + campo Observação | ✅ |
+| FASE 1b | Reduzir upsell agressivo para assinantes Plus/Pro | ✅ |
+| FASE 2 | Lançamentos recorrentes (semanal/mensal/anual) | ✅ |
+| FASE 3 | Orçamento por categoria com alertas 80%/100%/acima | ✅ |
+| FASE 4 | Regras de categorização automática por palavra-chave | ✅ |
+| FASE 5 | Split transaction (dividir em múltiplas categorias) | ✅ |
+| FASE 6 | Categorias customizáveis (CRUD + buildCatSelects dinâmico) | ✅ |
+| FASE 7 | Fluxo bancário: ocultar tx, marcar transferência, deduplicação | ✅ |
+| FASE 8 | UX: filtro por banco, toggle ocultas, período 6 meses, total por dia | ✅ |
+| FASE 9 | Preparação cloud sync (TODO comments em todas as funções de persistência) | ✅ |
+
+### Novos localStorage keys
+- `finno_recurring_<uid>` — regras de lançamentos recorrentes
+- `finno_budget_<uid>` — limites de orçamento por categoria
+- `finno_cats_<uid>` — categorias customizadas
+- `finno_rules_<uid>` — regras de categorização automática
+
+### Schema de transação extendido (backward-compatible)
+- Campo `id` adicionado com migração lazy em `loadUserData()`
+- Novos campos opcionais: `splits[]`, `recurring`, `hidden`, `isTransfer`, `note`, `pending`
+
 ## 🔄 Em andamento
 - Nenhuma tarefa incompleta identificada
 

@@ -151,6 +151,10 @@ export function loadUserData() {
   try {
     const txRaw = localStorage.getItem('finno_tx_' + uid);
     transactions = txRaw ? JSON.parse(txRaw) : [];
+    // Migração lazy: adicionar id a transações antigas
+    let _needsIdMigration = false;
+    transactions.forEach(t => { if (!t.id) { t.id = _genId(); _needsIdMigration = true; } });
+    if (_needsIdMigration) saveTransactions();
     const goalsRaw = localStorage.getItem('finno_goals_' + uid);
     const rawGoals = goalsRaw ? JSON.parse(goalsRaw) : [];
     // Descartar metas do schema antigo (sem campo 'type') — decisão confirmada pelo usuário
@@ -159,8 +163,25 @@ export function loadUserData() {
     transactions = [];
     goals = [];
   }
+  // FASE 6: sincronizar selects com categorias customizadas após carregar dados
+  // (buildCatSelects é definida mais abaixo, usa hoisting via window)
+  setTimeout(() => { if (typeof buildCatSelects === 'function') buildCatSelects(); }, 0);
 }
 window.loadUserData = loadUserData;
+
+function _genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+// Retorna data local no formato YYYY-MM-DD sem depender de UTC.
+// toISOString() usa UTC — no Brasil (UTC-3) às 22h já seria "amanhã" em UTC.
+function _localDateStr(d) {
+  const dt = d || new Date();
+  const y  = dt.getFullYear();
+  const m  = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
 
 // ── Computed data helpers ─────────────────────────────────────────
 function calcBalance() {
@@ -168,11 +189,12 @@ function calcBalance() {
 }
 
 function calcIncome(txList) {
-  return txList.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+  // Transferências internas e ocultas ficam fora dos totais
+  return txList.filter(t => t.amount > 0 && !t.isTransfer && !t.hidden).reduce((s, t) => s + t.amount, 0);
 }
 
 function calcExpenses(txList) {
-  return txList.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  return txList.filter(t => t.amount < 0 && !t.isTransfer && !t.hidden).reduce((s, t) => s + Math.abs(t.amount), 0);
 }
 
 function filterTxMonth(txList) {
@@ -217,20 +239,19 @@ window.runLoadingSequence = runLoadingSequence;
 
 // ── Build dashboard ───────────────────────────────────────────────
 export function buildDashboard() {
-  // Toast de retorno do Stripe — apenas visual, plano vem do Firestore
   if (window._pendingPaymentToast) {
     const isSuccess = window._pendingPaymentToast === 'success';
-    const msg = isSuccess
-      ? 'Pagamento recebido! Seu plano será ativado em instantes.'
-      : 'Pagamento cancelado.';
+    const msg = isSuccess ? 'Pagamento recebido! Seu plano será ativado em instantes.' : 'Pagamento cancelado.';
     setTimeout(() => toast(msg, isSuccess ? 'success' : 'info'), 600);
     delete window._pendingPaymentToast;
   }
   loadUserData();
+  processRecurring();
   buildHomePanel();
   buildChart();
   buildTransactions();
   buildCategories();
+  buildBudgetWidget();
   buildGoals();
   buildInsights();
 }
@@ -273,12 +294,15 @@ export function buildChart() {
 window.buildChart = buildChart;
 
 export function buildTransactions() {
+  buildBankFilter();          // FASE 8: atualiza filtro de banco dinamicamente
   renderTransactions(transactions);
+  buildRecurringList();
 }
 window.buildTransactions = buildTransactions;
 
 export function buildCategories() {
   filterCategoriesByPeriod();
+  buildBudgetWidget();
 }
 window.buildCategories = buildCategories;
 
@@ -502,6 +526,7 @@ window.switchBottomTab = switchBottomTab;
 
 // ── Modals ────────────────────────────────────────────────────────
 export function openAddTx() {
+  _resetTxModal();
   const modal = document.getElementById('modal-tx');
   if (modal) modal.classList.add('open');
 }
@@ -527,14 +552,26 @@ document.addEventListener('DOMContentLoaded', () => {
 export function addTransaction() {
   const desc = document.getElementById('tx-desc').value.trim();
   const val = parseFloat(document.getElementById('tx-val').value);
-  const cat = document.getElementById('tx-cat').value;
+  let cat = document.getElementById('tx-cat').value;
   const type = document.getElementById('tx-type').value;
+  const note = document.getElementById('tx-note')?.value.trim() || '';
   if (!desc || !val || val <= 0) { toast('Preencha descrição e valor válidos.', 'error'); return; }
   const amount = type === 'Gasto' ? -Math.abs(val) : Math.abs(val);
   const txDateInput = document.getElementById('tx-date')?.value;
-  const today = new Date().toISOString().split('T')[0];
+  const today = _localDateStr();
   const txDate = txDateInput || today;
-  transactions.unshift({ date: txDate, desc, cat, amount, bank: 'Manual' });
+  // Aplicar regra automática se categoria não foi alterada do padrão
+  if (cat === '🔧 Outros' || !cat) {
+    const suggested = applyRulesToDesc(desc);
+    if (suggested) { cat = suggested; toast(`Categoria aplicada: ${suggested}`, 'success'); }
+  }
+  // Verificação de duplicidade: avisa se existe tx parecida recente
+  if (_checkDuplicate(desc, Math.abs(val), txDate)) {
+    if (!confirm(`Existe uma transação parecida com "${desc}" no mesmo período. Deseja continuar e adicionar mesmo assim?`)) return;
+  }
+  const tx = { id: _genId(), date: txDate, desc, cat, amount, bank: 'Manual' };
+  if (note) tx.note = note;
+  transactions.unshift(tx);
   saveTransactions();
   buildTransactions();
   buildCategories();
@@ -544,11 +581,160 @@ export function addTransaction() {
   document.getElementById('tx-val').value = '';
   const txDateEl = document.getElementById('tx-date');
   if (txDateEl) txDateEl.value = '';
+  const txNoteEl = document.getElementById('tx-note');
+  if (txNoteEl) txNoteEl.value = '';
   toast('Transação adicionada! ✓', 'success');
-  incrementManualEntriesCount(); // contabilizar localmente para elegibilidade do trial
-  recordEngagementViaCloud('entry'); // espelhar no servidor para validação server-side
+  checkBudgetAlerts(tx);
+  incrementManualEntriesCount();
+  recordEngagementViaCloud('entry');
 }
 window.addTransaction = addTransaction;
+
+// ── Estado de edição de transação ─────────────────────────────────
+let _txEditingId = null;
+
+export function openEditTx(id) {
+  const tx = transactions.find(t => t.id === id);
+  if (!tx) return;
+  _txEditingId = id;
+  const typeEl = document.getElementById('tx-type');
+  const descEl = document.getElementById('tx-desc');
+  const valEl  = document.getElementById('tx-val');
+  const catEl  = document.getElementById('tx-cat');
+  const dateEl = document.getElementById('tx-date');
+  const noteEl = document.getElementById('tx-note');
+  if (typeEl) typeEl.value = tx.amount < 0 ? 'Gasto' : 'Receita';
+  if (descEl) descEl.value = tx.desc || '';
+  if (valEl)  valEl.value  = Math.abs(tx.amount);
+  if (catEl)  catEl.value  = tx.cat || '🔧 Outros';
+  if (dateEl) dateEl.value = (tx.date || '').split('T')[0];
+  if (noteEl) noteEl.value = tx.note || '';
+  const titleEl = document.getElementById('modal-tx-title');
+  const saveBtn = document.getElementById('modal-tx-save-btn');
+  const delBtn  = document.getElementById('modal-tx-delete-btn');
+  if (titleEl) titleEl.textContent = 'Editar transação';
+  if (saveBtn) { saveBtn.textContent = 'Salvar alterações'; saveBtn.onclick = saveEditTx; }
+  if (delBtn)  delBtn.style.display = 'block';
+  document.getElementById('modal-tx').classList.add('open');
+}
+window.openEditTx = openEditTx;
+
+export function saveEditTx() {
+  if (!_txEditingId) return;
+  const desc = document.getElementById('tx-desc').value.trim();
+  const val  = parseFloat(document.getElementById('tx-val').value);
+  const cat  = document.getElementById('tx-cat').value;
+  const type = document.getElementById('tx-type').value;
+  const note = document.getElementById('tx-note')?.value.trim() || '';
+  if (!desc || !val || val <= 0) { toast('Preencha descrição e valor válidos.', 'error'); return; }
+  const amount = type === 'Gasto' ? -Math.abs(val) : Math.abs(val);
+  const txDateInput = document.getElementById('tx-date')?.value;
+  const today = _localDateStr();
+  const idx = transactions.findIndex(t => t.id === _txEditingId);
+  if (idx !== -1) {
+    transactions[idx] = { ...transactions[idx], desc, cat, amount, date: txDateInput || today, note: note || undefined };
+  }
+  saveTransactions();
+  buildTransactions();
+  buildCategories();
+  buildHomePanel();
+  _resetTxModal();
+  closeModal('modal-tx');
+  toast('Transação atualizada! ✓', 'success');
+}
+window.saveEditTx = saveEditTx;
+
+export function deleteTx(id) {
+  if (!confirm('Excluir esta transação?')) return;
+  transactions = transactions.filter(t => t.id !== id);
+  saveTransactions();
+  buildTransactions();
+  buildCategories();
+  buildHomePanel();
+  _resetTxModal();
+  closeModal('modal-tx');
+  toast('Transação excluída.', 'info');
+}
+window.deleteTx = deleteTx;
+
+export function duplicateTx(id) {
+  const tx = transactions.find(t => t.id === id);
+  if (!tx) return;
+  const today = _localDateStr();
+  const clone = { ...tx, id: _genId(), date: today };
+  transactions.unshift(clone);
+  saveTransactions();
+  buildTransactions();
+  buildHomePanel();
+  toast('Transação duplicada! ✓', 'success');
+}
+window.duplicateTx = duplicateTx;
+
+export function hideTx(id) {
+  const idx = transactions.findIndex(t => t.id === id);
+  if (idx !== -1) {
+    transactions[idx].hidden = true;
+    saveTransactions();
+    buildTransactions();
+    toast('Transação ocultada.', 'info');
+  }
+}
+window.hideTx = hideTx;
+
+// ── Fluxo bancário melhorado (FASE 7) ─────────────────────────────
+
+export function markAsTransfer(id) {
+  const idx = transactions.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  const wasTransfer = transactions[idx].isTransfer;
+  transactions[idx].isTransfer = !wasTransfer;
+  saveTransactions();
+  buildTransactions();
+  buildHomePanel();
+  toast(wasTransfer ? 'Removida marcação de transferência.' : '↔️ Marcada como transferência interna — não entra nos totais.', 'success');
+}
+window.markAsTransfer = markAsTransfer;
+
+// Verificar se existe transação parecida (deduplicação)
+// Retorna true se encontrou possível duplicata
+function _checkDuplicate(desc, amount, date) {
+  if (!desc || !amount) return false;
+  const target = new Date(date + 'T00:00:00');
+  const prefix = desc.slice(0,6).toLowerCase();
+  return transactions.some(t => {
+    if (Math.abs(t.amount) !== Math.abs(amount)) return false;
+    const d = new Date((t.date||'').split('T')[0]+'T00:00:00');
+    const dayDiff = Math.abs(Math.round((target - d) / 86400000));
+    if (dayDiff > 1) return false;
+    return (t.desc||'').slice(0,6).toLowerCase() === prefix;
+  });
+}
+
+// Restores a hidden tx back to visible
+export function unhideTx(id) {
+  const idx = transactions.findIndex(t => t.id === id);
+  if (idx !== -1) {
+    transactions[idx].hidden = false;
+    saveTransactions();
+    buildTransactions();
+    toast('Transação exibida novamente.', 'success');
+  }
+}
+window.unhideTx = unhideTx;
+
+function _resetTxModal() {
+  _txEditingId = null;
+  const titleEl = document.getElementById('modal-tx-title');
+  const saveBtn = document.getElementById('modal-tx-save-btn');
+  const delBtn  = document.getElementById('modal-tx-delete-btn');
+  if (titleEl) titleEl.textContent = 'Adicionar transação';
+  if (saveBtn) { saveBtn.textContent = 'Salvar transação'; saveBtn.onclick = addTransaction; }
+  if (delBtn)  delBtn.style.display = 'none';
+  ['tx-desc','tx-val','tx-note'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  const dateEl=document.getElementById('tx-date'); if(dateEl) dateEl.value='';
+}
+
+window._deleteTxFromModal = function() { if (_txEditingId) deleteTx(_txEditingId); };
 
 // Ícones padrão por tipo de meta
 const GOAL_ICONS = { casamento:'💍', viagem:'✈️', casa:'🏠', carro:'🚗', estudo:'📚', emergencia:'🚨', outros:'🎯' };
@@ -590,34 +776,56 @@ export function syncData() {
 window.syncData = syncData;
 
 // ── Filters ───────────────────────────────────────────────────────
+
+// Popula dinamicamente o filtro de banco com os bancos presentes nas transações
+export function buildBankFilter() {
+  const sel = document.getElementById('filter-bank');
+  if (!sel) return;
+  const banks = [...new Set(transactions.map(t => t.bank).filter(Boolean))].sort();
+  const current = sel.value;
+  sel.innerHTML = '<option value="all">Todas contas</option>' +
+    banks.map(b => `<option value="${b}"${b===current?' selected':''}>${b}</option>`).join('');
+}
+window.buildBankFilter = buildBankFilter;
+
 export function applyFilters() {
-  const type = document.getElementById('filter-type')?.value || 'all';
-  const cat = document.getElementById('filter-cat')?.value || 'all';
+  const type   = document.getElementById('filter-type')?.value   || 'all';
+  const cat    = document.getElementById('filter-cat')?.value    || 'all';
   const period = document.getElementById('filter-period')?.value || 'all';
+  const bank   = document.getElementById('filter-bank')?.value   || 'all';
 
   let filtered = [...transactions];
-  if (type === 'income') filtered = filtered.filter(t => t.amount > 0);
+  if (type === 'income')  filtered = filtered.filter(t => t.amount > 0);
   if (type === 'expense') filtered = filtered.filter(t => t.amount < 0);
-  if (cat !== 'all') filtered = filtered.filter(t => t.cat === cat);
+  if (cat  !== 'all')     filtered = filtered.filter(t => t.cat === cat);
+  if (bank !== 'all')     filtered = filtered.filter(t => t.bank === bank);
 
   const now = new Date(); now.setHours(23,59,59,999);
   const today = new Date(); today.setHours(0,0,0,0);
-  if (period === 'today') filtered = filtered.filter(t => new Date(t.date+'T00:00:00') >= today);
-  if (period === 'week') { const d = new Date(today); d.setDate(d.getDate()-7); filtered = filtered.filter(t => new Date(t.date+'T00:00:00') >= d); }
-  if (period === 'month') { filtered = filtered.filter(t => { const d=new Date(t.date+'T00:00:00'); return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear(); }); }
+  if (period === 'today')  filtered = filtered.filter(t => new Date(t.date+'T00:00:00') >= today);
+  if (period === 'week')   { const d=new Date(today); d.setDate(d.getDate()-7); filtered=filtered.filter(t=>new Date(t.date+'T00:00:00')>=d); }
+  if (period === 'month')  { filtered=filtered.filter(t=>{ const d=new Date(t.date+'T00:00:00'); return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear(); }); }
   if (period === 'last30') { const d=new Date(today); d.setDate(d.getDate()-30); filtered=filtered.filter(t=>new Date(t.date+'T00:00:00')>=d); }
   if (period === 'last90') { const d=new Date(today); d.setDate(d.getDate()-90); filtered=filtered.filter(t=>new Date(t.date+'T00:00:00')>=d); }
+  if (period === 'last6m') { const d=new Date(today); d.setMonth(d.getMonth()-6); filtered=filtered.filter(t=>new Date(t.date+'T00:00:00')>=d); }
 
   const total = filtered.reduce((s,t) => s + t.amount, 0);
   const sumEl = document.getElementById('filter-summary');
-  if (sumEl) sumEl.textContent = filtered.length > 0 ? `${filtered.length} transação(ões) · Total: R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}` : 'Nenhuma transação encontrada.';
+  if (sumEl) sumEl.textContent = filtered.length > 0
+    ? `${filtered.length} transação(ões) · Total: R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+    : 'Nenhuma transação encontrada.';
 
   renderTransactions(filtered);
 }
 window.applyFilters = applyFilters;
 
 export function clearFilters() {
-  ['filter-type','filter-cat','filter-period'].forEach(id => { const el=document.getElementById(id); if(el) el.value='all'; });
+  ['filter-type','filter-cat','filter-period','filter-bank'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = 'all';
+  });
+  const hidden = document.getElementById('filter-show-hidden');
+  if (hidden) hidden.checked = false;
   const sumEl = document.getElementById('filter-summary');
   if (sumEl) sumEl.textContent = '';
   buildTransactions();
@@ -627,7 +835,9 @@ window.clearFilters = clearFilters;
 export function renderTransactions(txList) {
   const list = document.getElementById('tx-list');
   if (!list) return;
-  if (!txList || txList.length === 0) {
+  const showHidden = document.getElementById('filter-show-hidden')?.checked;
+  const visible = showHidden ? txList : txList.filter(t => !t.hidden);
+  if (!visible || visible.length === 0) {
     list.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--muted)">
       <div style="font-size:2.5rem;margin-bottom:12px">📋</div>
       <div style="font-size:0.9rem;font-weight:600;margin-bottom:6px;color:var(--text2)">Nenhuma transação ainda</div>
@@ -635,13 +845,82 @@ export function renderTransactions(txList) {
     </div>`;
     return;
   }
-  const sorted = [...txList].sort((a,b) => new Date(b.date)-new Date(a.date));
+  const sorted = [...visible].sort((a,b) => new Date(b.date)-new Date(a.date));
   const groups = {};
-  sorted.forEach(tx => { const date = (tx.date||'').split('T')[0]||'Sem data'; if(!groups[date]) groups[date]=[]; groups[date].push(tx); });
-  const fmtDate = d => { const dt=new Date(d+'T00:00:00'); const hoje=new Date(); hoje.setHours(0,0,0,0); const diff=Math.round((hoje-dt)/86400000); if(diff===0) return 'Hoje'; if(diff===1) return 'Ontem'; return dt.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'short'}); };
-  list.innerHTML = Object.entries(groups).map(([date,txs]) => `<div class="tx-date-group"><div class="tx-date-label">${fmtDate(date)}</div>${txs.map(tx => { const amt=tx.amount||0; const isPos=amt>0; return `<div class="tx-item"><div class="tx-emoji">${(tx.cat||'').split(' ')[0]||'💸'}</div><div class="tx-info"><div class="desc">${tx.desc||tx.description||'Transação'}</div><div class="cat">${tx.cat||tx.category||'Outros'}${tx.bank ? ' · ' + tx.bank : ''}</div></div><div class="tx-amount ${isPos?'positive':'negative'}">${isPos?'+':''}R$ ${Math.abs(amt).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>`; }).join('')}</div>`).join('');
+  sorted.forEach(tx => {
+    const date = (tx.date||'').split('T')[0]||'Sem data';
+    if (!groups[date]) groups[date]=[];
+    groups[date].push(tx);
+  });
+  const fmtDate = d => {
+    const dt=new Date(d+'T00:00:00');
+    const hoje=new Date(); hoje.setHours(0,0,0,0);
+    const diff=Math.round((hoje-dt)/86400000);
+    if(diff===0) return 'Hoje';
+    if(diff===1) return 'Ontem';
+    return dt.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'short'});
+  };
+  const frag = document.createDocumentFragment();
+  Object.entries(groups).forEach(([date,txs]) => {
+    const dayTotal = txs.reduce((s,t) => s+t.amount, 0);
+    const dayTotalFmt = (dayTotal>=0?'+':'') + 'R$ ' + Math.abs(dayTotal).toLocaleString('pt-BR',{minimumFractionDigits:2});
+    const group = document.createElement('div');
+    group.className = 'tx-date-group';
+    group.innerHTML = `<div class="tx-date-label" style="display:flex;justify-content:space-between;align-items:center"><span>${fmtDate(date)}</span><span style="font-size:0.72rem;color:${dayTotal>=0?'var(--success)':'var(--danger)'};font-weight:600">${dayTotalFmt}</span></div>`;
+    txs.forEach(tx => {
+      const amt=tx.amount||0;
+      const isPos=amt>0;
+      const hasSplits=tx.splits&&tx.splits.length>0;
+      const catDisplay = hasSplits ? '🔀 Dividida' : (tx.cat||'🔧 Outros');
+      const badges=[
+        tx.isTransfer ? `<span style="font-size:0.65rem;background:rgba(100,200,255,0.12);color:#64c8ff;border-radius:99px;padding:2px 6px;margin-left:4px">Transferência</span>` : '',
+        tx.pending    ? `<span style="font-size:0.65rem;background:rgba(251,191,36,0.12);color:#fbbf24;border-radius:99px;padding:2px 6px;margin-left:4px">Pendente</span>` : '',
+      ].join('');
+      const txEl=document.createElement('div');
+      txEl.className='tx-item';
+      txEl.style.cssText='position:relative';
+      const txId=tx.id||'';
+      const isBankTx = tx.bank && tx.bank !== 'Manual' && tx.bank !== 'Recorrente';
+      txEl.innerHTML=`
+        <div class="tx-emoji">${(tx.cat||'').split(' ')[0]||'💸'}</div>
+        <div class="tx-info" style="min-width:0;flex:1">
+          <div class="desc" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${tx.desc||tx.description||'Transação'}${badges}</div>
+          <div class="cat" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${catDisplay}${tx.bank?' · '+tx.bank:''}</div>
+          ${tx.note?`<div style="font-size:0.72rem;color:var(--muted);font-style:italic;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${tx.note}</div>`:''}
+        </div>
+        <div class="tx-amount ${isPos?'positive':'negative'}">${isPos?'+':''}R$ ${Math.abs(amt).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+        <button onclick="event.stopPropagation();toggleTxMenu('${txId}')" title="Opções" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:4px 6px;border-radius:6px;flex-shrink:0;line-height:1">⋯</button>
+        <div id="tx-menu-${txId}" style="display:none;position:absolute;right:8px;top:100%;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:6px;z-index:200;min-width:165px;box-shadow:0 8px 24px rgba(0,0,0,0.5)">
+          <button onclick="openEditTx('${txId}');closeTxMenu()" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.83rem;border-radius:8px">✏️ Editar</button>
+          <button onclick="duplicateTx('${txId}');closeTxMenu()" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.83rem;border-radius:8px">📋 Duplicar</button>
+          <button onclick="openSplitModal('${txId}');closeTxMenu()" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.83rem;border-radius:8px">✂️ Dividir</button>
+          <button onclick="markAsTransfer('${txId}');closeTxMenu()" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.83rem;border-radius:8px">${tx.isTransfer?'↩️ Remover transferência':'↔️ Transferência interna'}</button>
+          ${tx.hidden
+            ? `<button onclick="unhideTx('${txId}');closeTxMenu()" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.83rem;border-radius:8px">👁️ Exibir novamente</button>`
+            : `<button onclick="hideTx('${txId}');closeTxMenu()" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.83rem;border-radius:8px">🙈 Ocultar</button>`}
+          <button onclick="deleteTx('${txId}');closeTxMenu()" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--danger);padding:8px 12px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.83rem;border-radius:8px">🗑️ Excluir</button>
+        </div>
+      `;
+      group.appendChild(txEl);
+    });
+    frag.appendChild(group);
+  });
+  list.innerHTML='';
+  list.appendChild(frag);
 }
 window.renderTransactions = renderTransactions;
+
+export function toggleTxMenu(id) {
+  document.querySelectorAll('[id^="tx-menu-"]').forEach(m => { if(m.id!==`tx-menu-${id}`) m.style.display='none'; });
+  const menu=document.getElementById(`tx-menu-${id}`);
+  if(menu) menu.style.display=menu.style.display==='none'?'block':'none';
+}
+window.toggleTxMenu = toggleTxMenu;
+
+export function closeTxMenu() {
+  document.querySelectorAll('[id^="tx-menu-"]').forEach(m => m.style.display='none');
+}
+window.closeTxMenu = closeTxMenu;
 
 // ── Categories ────────────────────────────────────────────────────
 export function filterCategoriesByPeriod() {
@@ -673,7 +952,20 @@ export function buildCategoriesFromTx(filteredTx) {
   const list = document.getElementById('cat-list');
   if (!list) return;
   const catMap = {};
-  filteredTx.forEach(tx => { const cat=tx.cat||tx.category||'🔧 Outros'; if(!catMap[cat]) catMap[cat]=0; catMap[cat]+=Math.abs(tx.amount); });
+  filteredTx.forEach(tx => {
+    // Expande splits: cada split contribui separado ao catMap
+    if (tx.splits && tx.splits.length > 0) {
+      tx.splits.forEach(sp => {
+        const cat = sp.cat || tx.cat || '🔧 Outros';
+        if (!catMap[cat]) catMap[cat] = 0;
+        catMap[cat] += Math.abs(sp.amount);
+      });
+    } else {
+      const cat = tx.cat || tx.category || '🔧 Outros';
+      if (!catMap[cat]) catMap[cat] = 0;
+      catMap[cat] += Math.abs(tx.amount);
+    }
+  });
   const total = Object.values(catMap).reduce((a,b)=>a+b,0);
   if (total === 0) {
     list.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--muted)">
@@ -740,6 +1032,585 @@ export function closeCatDetail() {
   if (detail) detail.style.display = 'none';
 }
 window.closeCatDetail = closeCatDetail;
+
+// ── Regras de Categorização Automática (FASE 4) ────────────────────
+// TODO(cloud): migrar finno_rules_<uid> para Firestore quando disponível
+
+function _rulesKey() { const uid=auth.currentUser?.uid; return uid?'finno_rules_'+uid:null; }
+function loadRules() { const k=_rulesKey(); if(!k) return []; try { return JSON.parse(localStorage.getItem(k)||'[]'); } catch(e) { return []; } }
+function saveRules(rules) { const k=_rulesKey(); if(!k) return; try { localStorage.setItem(k,JSON.stringify(rules)); } catch(e) { toast('Erro ao salvar regras.','error'); } } // TODO(cloud): substituir por Firestore batch write quando migrar
+
+export function applyRulesToDesc(desc) {
+  if (!desc) return null;
+  const rules = loadRules();
+  const lower = desc.toLowerCase();
+  const match = rules.find(r => r.keyword && lower.includes(r.keyword.toLowerCase()));
+  return match ? match.cat : null;
+}
+window.applyRulesToDesc = applyRulesToDesc;
+
+export function openRulesModal() {
+  buildRulesList();
+  document.getElementById('modal-rules')?.classList.add('open');
+}
+window.openRulesModal = openRulesModal;
+
+export function addRule() {
+  const keyword = document.getElementById('rule-keyword')?.value.trim();
+  const cat     = document.getElementById('rule-cat')?.value;
+  if (!keyword || !cat) { toast('Preencha palavra-chave e categoria.', 'error'); return; }
+  const rules = loadRules();
+  if (rules.some(r => r.keyword.toLowerCase() === keyword.toLowerCase())) { toast('Já existe uma regra para essa palavra-chave.', 'error'); return; }
+  rules.push({ id: _genId(), keyword, cat, createdAt: Date.now() });
+  saveRules(rules);
+  buildRulesList();
+  const kwEl = document.getElementById('rule-keyword');
+  if (kwEl) kwEl.value = '';
+  toast(`Regra criada: "${keyword}" → ${cat}`, 'success');
+}
+window.addRule = addRule;
+
+export function deleteRule(id) {
+  saveRules(loadRules().filter(r => r.id !== id));
+  buildRulesList();
+  toast('Regra removida.', 'info');
+}
+window.deleteRule = deleteRule;
+
+export function buildRulesList() {
+  const list = document.getElementById('rules-list');
+  if (!list) return;
+  const rules = loadRules();
+  if (rules.length === 0) {
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted);font-size:0.82rem">Nenhuma regra criada. Adicione palavras-chave acima.</div>`;
+    return;
+  }
+  list.innerHTML = rules.map(r => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:0.85rem;font-weight:500">"${r.keyword}"</div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">${r.cat}</div>
+      </div>
+      <button onclick="deleteRule('${r.id}')" style="background:none;border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--danger);cursor:pointer;font-size:0.75rem">✕</button>
+    </div>
+  `).join('');
+}
+window.buildRulesList = buildRulesList;
+
+// ── Orçamento por Categoria (FASE 3) ──────────────────────────────
+// TODO(cloud): migrar finno_budget_<uid> para Firestore quando disponível
+
+function _budgetKey() { const uid=auth.currentUser?.uid; return uid?'finno_budget_'+uid:null; }
+function loadBudget() { const k=_budgetKey(); if(!k) return {}; try { return JSON.parse(localStorage.getItem(k)||'{}'); } catch(e) { return {}; } }
+function saveBudget(b) { const k=_budgetKey(); if(!k) return; try { localStorage.setItem(k,JSON.stringify(b)); } catch(e) { toast('Erro ao salvar orçamento.','error'); } } // TODO(cloud): substituir por Firestore batch write quando migrar
+
+function getBudgetStatus() {
+  const budget = loadBudget();
+  const monthTx = filterTxMonth(transactions).filter(t => t.amount < 0 && !t.isTransfer && !t.hidden);
+  const catSpent = {};
+  monthTx.forEach(t => { const c=t.cat||'🔧 Outros'; catSpent[c]=Math.round(((catSpent[c]||0)+Math.abs(t.amount))*100)/100; });
+  return Object.entries(budget).map(([cat,limit]) => {
+    const spent = catSpent[cat] || 0;
+    const pct = limit > 0 ? Math.round((spent/limit)*100) : 0;
+    return { cat, limit, spent, pct };
+  }).sort((a,b) => b.pct-a.pct);
+}
+
+export function openBudgetModal(cat) {
+  const select = document.getElementById('budget-cat');
+  if (select && cat) select.value = cat;
+  const budget = loadBudget();
+  const input = document.getElementById('budget-limit');
+  if (input) input.value = (cat && budget[cat]) ? budget[cat] : '';
+  buildBudgetLimitsList();
+  document.getElementById('modal-budget')?.classList.add('open');
+}
+window.openBudgetModal = openBudgetModal;
+
+export function saveBudgetLimit() {
+  const cat   = document.getElementById('budget-cat')?.value;
+  const limit = parseFloat(document.getElementById('budget-limit')?.value);
+  if (!cat || !limit || limit <= 0) { toast('Escolha uma categoria e um limite válido.', 'error'); return; }
+  const budget = loadBudget();
+  budget[cat] = Math.round(limit * 100) / 100;
+  saveBudget(budget);
+  buildBudgetWidget();
+  buildBudgetLimitsList();
+  const limitEl = document.getElementById('budget-limit');
+  if (limitEl) limitEl.value = '';
+  toast(`Orçamento: ${cat} → R$ ${limit.toFixed(2).replace('.',',')}`, 'success');
+}
+window.saveBudgetLimit = saveBudgetLimit;
+
+export function deleteBudgetLimit(cat) {
+  const budget = loadBudget();
+  delete budget[cat];
+  saveBudget(budget);
+  buildBudgetWidget();
+  buildBudgetLimitsList();
+  toast('Limite removido.', 'info');
+}
+window.deleteBudgetLimit = deleteBudgetLimit;
+
+export function buildBudgetWidget() {
+  const widget = document.getElementById('budget-widget');
+  if (!widget) return;
+  const status = getBudgetStatus();
+  const header = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${status.length?'12px':'6px'}">
+    <h3 style="font-family:Syne,sans-serif;font-size:0.95rem;font-weight:700;margin:0">Orçamento Mensal</h3>
+    <button onclick="openBudgetModal()" style="background:var(--accent);border:none;border-radius:8px;padding:6px 12px;color:#fff;font-size:0.78rem;cursor:pointer;font-family:DM Sans,sans-serif">+ Limite</button>
+  </div>`;
+  if (status.length === 0) {
+    widget.innerHTML = header + `<div style="text-align:center;padding:12px;color:var(--muted);font-size:0.8rem">Nenhum orçamento definido. Clique em "+ Limite" para controlar seus gastos.</div>`;
+    return;
+  }
+  const items = status.map(s => {
+    const barColor = s.pct >= 100 ? '#f87171' : s.pct >= 80 ? '#fbbf24' : '#4ade80';
+    const barW = Math.min(s.pct, 100);
+    const over = s.pct > 100 ? ` <span style="color:#f87171;font-size:0.7rem">(+R$ ${(s.spent-s.limit).toLocaleString('pt-BR',{minimumFractionDigits:2})})</span>` : '';
+    return `<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:0.82rem;font-weight:500">${s.cat}</span>
+        <span style="font-size:0.75rem;color:var(--muted)">R$ ${s.spent.toLocaleString('pt-BR',{minimumFractionDigits:2})} / R$ ${s.limit.toLocaleString('pt-BR',{minimumFractionDigits:2})} · ${s.pct}%${over}</span>
+      </div>
+      <div style="height:6px;background:var(--surface3);border-radius:99px;overflow:hidden;cursor:pointer" onclick="openBudgetModal('${s.cat.replace(/'/g,"\\'")}')">
+        <div style="height:100%;width:${barW}%;background:${barColor};border-radius:99px;transition:width 0.5s ease"></div>
+      </div>
+    </div>`;
+  }).join('');
+  widget.innerHTML = header + items;
+}
+window.buildBudgetWidget = buildBudgetWidget;
+
+function buildBudgetLimitsList() {
+  const list = document.getElementById('budget-limits-list');
+  if (!list) return;
+  const budget = loadBudget();
+  const entries = Object.entries(budget);
+  if (entries.length === 0) { list.innerHTML = `<div style="color:var(--muted);font-size:0.8rem;padding:8px 0">Nenhum limite definido ainda.</div>`; return; }
+  list.innerHTML = entries.map(([cat,lim]) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1;font-size:0.83rem">${cat}</span>
+      <span style="font-size:0.83rem;color:var(--accent);font-weight:600">R$ ${lim.toLocaleString('pt-BR',{minimumFractionDigits:2})}/mês</span>
+      <button onclick="deleteBudgetLimit('${cat.replace(/'/g,"\\'")}');" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--danger);cursor:pointer;font-size:0.72rem">✕</button>
+    </div>
+  `).join('');
+}
+
+export function checkBudgetAlerts(tx) {
+  if (!tx || tx.amount >= 0) return;
+  const budget = loadBudget();
+  const cat = tx.cat || '🔧 Outros';
+  const limit = budget[cat];
+  if (!limit) return;
+  const monthSpent = filterTxMonth(transactions).filter(t => t.amount < 0 && (t.cat||'🔧 Outros')===cat && !t.isTransfer).reduce((s,t)=>s+Math.abs(t.amount),0);
+  const pct = Math.round((monthSpent/limit)*100);
+  if (pct > 100)      toast(`🚨 ${cat} — R$ ${(monthSpent-limit).toLocaleString('pt-BR',{minimumFractionDigits:2})} acima do orçamento!`, 'error');
+  else if (pct >= 100) toast(`🔴 ${cat} — limite de orçamento atingido!`, 'error');
+  else if (pct >= 80)  toast(`⚠️ ${cat} — ${pct}% do orçamento mensal atingido.`, 'success');
+}
+window.checkBudgetAlerts = checkBudgetAlerts;
+
+// ── Categorias Customizáveis (FASE 6) ─────────────────────────────
+// TODO(cloud): migrar finno_cats_<uid> para Firestore quando disponível
+
+// Categorias padrão (sempre disponíveis, read-only)
+const _DEFAULT_CATS = [
+  '🛒 Alimentação','📱 Assinaturas','👗 Compras','📚 Estudos',
+  '🎮 Lazer','🏠 Moradia','💊 Saúde','🚗 Transporte',
+  '💰 Salário','📈 Investimento','🔧 Outros'
+];
+
+function _catsKey() { const uid=auth.currentUser?.uid; return uid?'finno_cats_'+uid:null; }
+function loadCustomCats() { const k=_catsKey(); if(!k) return []; try { return JSON.parse(localStorage.getItem(k)||'[]'); } catch(e) { return []; } }
+function saveCustomCats(cats) { const k=_catsKey(); if(!k) return; try { localStorage.setItem(k,JSON.stringify(cats)); } catch(e) { toast('Erro ao salvar categorias.','error'); } } // TODO(cloud): substituir por Firestore batch write quando migrar
+
+// Retorna TODAS as categorias: padrão + customizadas não-arquivadas
+export function getAllCategories() {
+  const custom = loadCustomCats().filter(c => !c.archived);
+  const customNames = custom.map(c => `${c.emoji} ${c.name}`);
+  return [..._DEFAULT_CATS, ...customNames];
+}
+window.getAllCategories = getAllCategories;
+
+// Popula todos os <select> de categoria com as cats disponíveis
+export function buildCatSelects() {
+  const cats = getAllCategories();
+  const selectIds = ['tx-cat','filter-cat','export-cat','budget-cat','rule-cat','rec-cat'];
+  selectIds.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const current = sel.value;
+
+    // Selects que precisam da opção "Todas" (filtros)
+    const hasAll   = id === 'filter-cat' || id === 'export-cat';
+    // Label limpa (sem emoji) apenas no filtro de transações; exportação mantém emoji
+    const stripEmoji = id === 'filter-cat';
+    const allLabel = id === 'export-cat' ? 'Todas as categorias' : 'Todas categorias';
+
+    sel.innerHTML = (hasAll ? `<option value="all">${allLabel}</option>` : '') +
+      cats.map(c => {
+        const label = stripEmoji ? (c.replace(/^[\p{Emoji}\s]+/u, '').trim() || c) : c;
+        return `<option value="${c}"${c === current ? ' selected' : ''}>${label}</option>`;
+      }).join('');
+  });
+}
+window.buildCatSelects = buildCatSelects;
+
+export function openCatManagerModal() {
+  buildCatManagerList();
+  document.getElementById('modal-cat-manager')?.classList.add('open');
+}
+window.openCatManagerModal = openCatManagerModal;
+
+export function buildCatManagerList() {
+  const list = document.getElementById('cat-manager-list');
+  if (!list) return;
+  const custom = loadCustomCats();
+  const defaultHtml = _DEFAULT_CATS.map(c => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);opacity:0.6">
+      <span style="font-size:1.2rem">${c.split(' ')[0]}</span>
+      <span style="flex:1;font-size:0.85rem">${c.replace(/^[\p{Emoji}\s]+/u,'').trim()||c}</span>
+      <span style="font-size:0.7rem;color:var(--muted);background:var(--surface3);border-radius:99px;padding:2px 8px">Padrão</span>
+    </div>
+  `).join('');
+  const customHtml = custom.length === 0 ? '' : custom.map(c => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);opacity:${c.archived?0.4:1}">
+      <span style="font-size:1.2rem">${c.emoji||'🏷️'}</span>
+      <span style="flex:1;font-size:0.85rem">${c.name}${c.archived?' <span style="font-size:0.7rem;color:var(--muted)">(arquivada)</span>':''}</span>
+      <button onclick="archiveCat('${c.id}')" title="${c.archived?'Restaurar':'Arquivar'}" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:0.72rem;color:var(--muted)">${c.archived?'↩️':'📦'}</button>
+      <button onclick="openCatEditor('${c.id}')" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:0.72rem">✏️</button>
+    </div>
+  `).join('');
+  list.innerHTML = (customHtml||'<div style="font-size:0.8rem;color:var(--muted);padding:8px 0">Nenhuma categoria personalizada ainda.</div>') + '<div style="margin-top:8px;font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;padding-top:8px;border-top:1px solid var(--border)">Categorias padrão (somente leitura)</div>' + defaultHtml;
+}
+window.buildCatManagerList = buildCatManagerList;
+
+export function openCatEditor(id) {
+  const cats = loadCustomCats();
+  const cat = id ? cats.find(c => c.id === id) : null;
+  document.getElementById('cat-edit-id').value   = cat?.id || '';
+  document.getElementById('cat-edit-emoji').value = cat?.emoji || '🏷️';
+  document.getElementById('cat-edit-name').value  = cat?.name || '';
+  const titleEl = document.getElementById('cat-editor-title');
+  if (titleEl) titleEl.textContent = cat ? 'Editar categoria' : 'Nova categoria';
+  document.getElementById('modal-cat-editor')?.classList.add('open');
+}
+window.openCatEditor = openCatEditor;
+
+export function saveCatEditor() {
+  const id    = document.getElementById('cat-edit-id')?.value;
+  const emoji = document.getElementById('cat-edit-emoji')?.value.trim() || '🏷️';
+  const name  = document.getElementById('cat-edit-name')?.value.trim();
+  if (!name) { toast('Informe o nome da categoria.', 'error'); return; }
+  const cats = loadCustomCats();
+  if (id) {
+    const idx = cats.findIndex(c => c.id === id);
+    if (idx !== -1) cats[idx] = { ...cats[idx], emoji, name };
+  } else {
+    if (cats.some(c => c.name.toLowerCase() === name.toLowerCase())) { toast('Categoria já existe.', 'error'); return; }
+    cats.push({ id: _genId(), emoji, name, archived: false, createdAt: Date.now() });
+  }
+  saveCustomCats(cats);
+  buildCatSelects();
+  buildCatManagerList();
+  closeModal('modal-cat-editor');
+  toast(id ? `Categoria "${name}" atualizada!` : `Categoria "${emoji} ${name}" criada!`, 'success');
+}
+window.saveCatEditor = saveCatEditor;
+
+export function archiveCat(id) {
+  const cats = loadCustomCats();
+  const cat = cats.find(c => c.id === id);
+  if (!cat) return;
+  cat.archived = !cat.archived;
+  saveCustomCats(cats);
+  buildCatSelects();
+  buildCatManagerList();
+  toast(cat.archived ? `"${cat.name}" arquivada.` : `"${cat.name}" restaurada.`, 'info');
+}
+window.archiveCat = archiveCat;
+
+// ── Split Transaction (FASE 5) ────────────────────────────────────
+// Permite dividir uma transação em múltiplas categorias
+
+let _splitTxId = null;  // id da transação sendo dividida
+
+export function openSplitModal(txId) {
+  const tx = transactions.find(t => t.id === txId);
+  if (!tx) return;
+  _splitTxId = txId;
+  // Configurar total disponível
+  const totalEl = document.getElementById('split-total-amount');
+  if (totalEl) totalEl.textContent = `R$ ${Math.abs(tx.amount).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+  document.getElementById('split-tx-desc').textContent = tx.desc || 'Transação';
+  // Resetar linhas
+  const container = document.getElementById('split-rows');
+  if (container) container.innerHTML = '';
+  // Pré-preencher com splits existentes ou 2 linhas em branco
+  if (tx.splits && tx.splits.length > 0) {
+    tx.splits.forEach(s => _addSplitRow(s.cat, Math.abs(s.amount), s.desc));
+  } else {
+    _addSplitRow(tx.cat, Math.abs(tx.amount));
+    _addSplitRow();
+  }
+  _updateSplitProgress(Math.abs(tx.amount));
+  document.getElementById('modal-split')?.classList.add('open');
+}
+window.openSplitModal = openSplitModal;
+
+function _addSplitRow(cat, amount, desc) {
+  const cats = getAllCategories();
+  const container = document.getElementById('split-rows');
+  if (!container) return;
+  const rowId = _genId();
+  const row = document.createElement('div');
+  row.className = 'split-row';
+  row.dataset.rowId = rowId;
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:8px';
+  row.innerHTML = `
+    <select style="flex:2;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:0.8rem;outline:none">
+      ${cats.map(c => `<option${c===(cat||'')?' selected':''}>${c}</option>`).join('')}
+    </select>
+    <input type="number" placeholder="Valor" step="0.01" value="${amount||''}" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:0.8rem;outline:none" oninput="_updateSplitProgressFromTx()">
+    <input type="text" placeholder="Obs" value="${desc||''}" style="flex:2;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:0.8rem;outline:none">
+    <button onclick="this.closest('.split-row').remove();_updateSplitProgressFromTx()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 8px;color:var(--danger);cursor:pointer;flex-shrink:0">✕</button>
+  `;
+  container.appendChild(row);
+}
+
+export function addSplitRow() {
+  _addSplitRow();
+  _updateSplitProgressFromTx();
+}
+window.addSplitRow = addSplitRow;
+
+function _updateSplitProgressFromTx() {
+  const tx = transactions.find(t => t.id === _splitTxId);
+  if (tx) _updateSplitProgress(Math.abs(tx.amount));
+}
+
+function _updateSplitProgress(total) {
+  const rows = document.querySelectorAll('#split-rows .split-row');
+  let allocated = 0;
+  rows.forEach(row => {
+    const val = parseFloat(row.querySelector('input[type=number]')?.value) || 0;
+    allocated += val;
+  });
+  allocated = Math.round(allocated * 100) / 100;
+  const remaining = Math.round((total - allocated) * 100) / 100;
+  const pct = total > 0 ? Math.min(Math.round((allocated / total) * 100), 100) : 0;
+  const barEl = document.getElementById('split-progress-bar');
+  const textEl = document.getElementById('split-progress-text');
+  const warnEl = document.getElementById('split-warning');
+  if (barEl) { barEl.style.width = pct + '%'; barEl.style.background = pct > 100 ? '#f87171' : pct === 100 ? '#4ade80' : '#fbbf24'; }
+  if (textEl) textEl.textContent = `R$ ${allocated.toLocaleString('pt-BR',{minimumFractionDigits:2})} alocados de R$ ${total.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+  if (warnEl) warnEl.style.display = remaining !== 0 ? 'block' : 'none';
+  if (warnEl) warnEl.textContent = remaining > 0 ? `⚠️ Faltam R$ ${remaining.toLocaleString('pt-BR',{minimumFractionDigits:2})} para alocar` : `⚠️ Total excedido em R$ ${Math.abs(remaining).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+}
+window._updateSplitProgressFromTx = _updateSplitProgressFromTx;
+
+export function saveSplits() {
+  const tx = transactions.find(t => t.id === _splitTxId);
+  if (!tx) return;
+  const total = Math.abs(tx.amount);
+  const rows = document.querySelectorAll('#split-rows .split-row');
+  const splits = [];
+  let sum = 0;
+  rows.forEach(row => {
+    const cat   = row.querySelector('select')?.value;
+    const amt   = parseFloat(row.querySelector('input[type=number]')?.value) || 0;
+    const desc  = row.querySelector('input[type=text]')?.value.trim() || '';
+    if (cat && amt > 0) { splits.push({ cat, amount: tx.amount < 0 ? -Math.abs(amt) : Math.abs(amt), desc: desc || undefined }); sum += amt; }
+  });
+  sum = Math.round(sum * 100) / 100;
+  if (Math.abs(sum - total) > 0.01) { toast(`A soma dos splits (R$ ${sum.toLocaleString('pt-BR',{minimumFractionDigits:2})}) deve ser igual ao valor total.`, 'error'); return; }
+  if (splits.length < 2) { toast('Crie ao menos 2 categorias para dividir.', 'error'); return; }
+  const idx = transactions.findIndex(t => t.id === _splitTxId);
+  if (idx !== -1) {
+    transactions[idx].splits = splits;
+    transactions[idx].cat = splits[0].cat;  // cat principal = primeiro split
+  }
+  saveTransactions();
+  buildTransactions();
+  buildCategories();
+  buildHomePanel();
+  closeModal('modal-split');
+  toast(`✓ Transação dividida em ${splits.length} categorias.`, 'success');
+}
+window.saveSplits = saveSplits;
+
+export function clearSplits(txId) {
+  const id = txId || _splitTxId;
+  const idx = transactions.findIndex(t => t.id === id);
+  if (idx !== -1) {
+    delete transactions[idx].splits;
+    saveTransactions();
+    buildTransactions();
+    buildCategories();
+    toast('Divisão removida.', 'info');
+  }
+  closeModal('modal-split');
+}
+window.clearSplits = clearSplits;
+
+// ── Lançamentos Recorrentes (FASE 2) ──────────────────────────────
+// TODO(cloud): migrar finno_recurring_<uid> para Firestore quando disponível
+
+function _recurringKey() { const uid=auth.currentUser?.uid; return uid?'finno_recurring_'+uid:null; }
+function loadRecurring() { const k=_recurringKey(); if(!k) return []; try { return JSON.parse(localStorage.getItem(k)||'[]'); } catch(e) { return []; } }
+function saveRecurring(list) { const k=_recurringKey(); if(!k) return; try { localStorage.setItem(k,JSON.stringify(list)); } catch(e) { toast('Erro ao salvar recorrentes.','error'); } } // TODO(cloud): substituir por Firestore batch write quando migrar
+
+function _advanceDate(dateStr, frequency) {
+  const d = new Date(dateStr+'T00:00:00'); // T00:00:00 = parse como hora local
+  if (frequency==='weekly')  d.setDate(d.getDate()+7);
+  if (frequency==='monthly') d.setMonth(d.getMonth()+1);
+  if (frequency==='yearly')  d.setFullYear(d.getFullYear()+1);
+  return _localDateStr(d); // ← usa local, não UTC
+}
+
+export function processRecurring() {
+  const recurring = loadRecurring();
+  if (recurring.length === 0) return;
+  const todayStr = _localDateStr();
+  let generated = 0;
+  let changed = false;
+  recurring.forEach(rule => {
+    if (!rule.active || !rule.nextDate) return;
+    let safety = 0;
+    while (rule.nextDate <= todayStr && safety < 365) {
+      safety++;
+      const tx = { id: _genId(), date: rule.nextDate, desc: rule.desc, cat: rule.cat, amount: rule.amount, bank: rule.bank || 'Recorrente', recurring: rule.id };
+      if (rule.note) tx.note = rule.note;
+      transactions.unshift(tx);
+      rule.nextDate = _advanceDate(rule.nextDate, rule.frequency);
+      generated++;
+      changed = true;
+    }
+  });
+  if (changed) {
+    saveRecurring(recurring);
+    saveTransactions();
+    if (generated > 0) toast(`🔄 ${generated} lançamento(s) recorrente(s) gerado(s).`, 'success');
+  }
+}
+window.processRecurring = processRecurring;
+
+let _recurringEditingId = null;
+
+export function openRecurringModal(id) {
+  _recurringEditingId = id || null;
+  const recurring = loadRecurring();
+  const rule = id ? recurring.find(r => r.id === id) : null;
+  const titleEl = document.getElementById('modal-recurring-title');
+  const saveBtn = document.getElementById('recurring-save-btn');
+  const delBtn  = document.getElementById('recurring-delete-btn');
+  if (titleEl) titleEl.textContent = rule ? 'Editar recorrente' : 'Nova recorrência';
+  if (saveBtn) saveBtn.onclick = rule ? () => saveRecurringEdit(id) : addRecurring;
+  if (delBtn)  delBtn.style.display = rule ? 'block' : 'none';
+  const today = _localDateStr();
+  document.getElementById('rec-type').value  = rule ? (rule.amount < 0 ? 'Gasto' : 'Receita') : 'Gasto';
+  document.getElementById('rec-desc').value  = rule?.desc || '';
+  document.getElementById('rec-val').value   = rule ? Math.abs(rule.amount) : '';
+  document.getElementById('rec-cat').value   = rule?.cat || '🔧 Outros';
+  document.getElementById('rec-freq').value  = rule?.frequency || 'monthly';
+  document.getElementById('rec-next').value  = rule?.nextDate || today;
+  const noteEl = document.getElementById('rec-note');
+  if (noteEl) noteEl.value = rule?.note || '';
+  document.getElementById('modal-recurring')?.classList.add('open');
+}
+window.openRecurringModal = openRecurringModal;
+
+export function addRecurring() {
+  const desc  = document.getElementById('rec-desc')?.value.trim();
+  const val   = parseFloat(document.getElementById('rec-val')?.value);
+  const cat   = document.getElementById('rec-cat')?.value;
+  const type  = document.getElementById('rec-type')?.value;
+  const freq  = document.getElementById('rec-freq')?.value;
+  const next  = document.getElementById('rec-next')?.value;
+  const note  = document.getElementById('rec-note')?.value.trim() || '';
+  if (!desc || !val || val <= 0 || !next) { toast('Preencha todos os campos obrigatórios.', 'error'); return; }
+  const amount = type === 'Gasto' ? -Math.abs(val) : Math.abs(val);
+  const rule = { id: _genId(), desc, cat, amount, bank: 'Recorrente', frequency: freq, nextDate: next, active: true, createdAt: Date.now() };
+  if (note) rule.note = note;
+  const recurring = loadRecurring();
+  recurring.push(rule);
+  saveRecurring(recurring);
+  buildRecurringList();
+  closeModal('modal-recurring');
+  const freqLabel = { weekly:'semanal', monthly:'mensal', yearly:'anual' };
+  toast(`Recorrência criada: "${desc}" (${freqLabel[freq]||freq})`, 'success');
+}
+window.addRecurring = addRecurring;
+
+export function saveRecurringEdit(id) {
+  const desc  = document.getElementById('rec-desc')?.value.trim();
+  const val   = parseFloat(document.getElementById('rec-val')?.value);
+  const cat   = document.getElementById('rec-cat')?.value;
+  const type  = document.getElementById('rec-type')?.value;
+  const freq  = document.getElementById('rec-freq')?.value;
+  const next  = document.getElementById('rec-next')?.value;
+  const note  = document.getElementById('rec-note')?.value.trim() || '';
+  if (!desc || !val || val <= 0 || !next) { toast('Preencha todos os campos obrigatórios.', 'error'); return; }
+  const amount = type === 'Gasto' ? -Math.abs(val) : Math.abs(val);
+  const recurring = loadRecurring();
+  const idx = recurring.findIndex(r => r.id === id);
+  if (idx !== -1) {
+    recurring[idx] = { ...recurring[idx], desc, cat, amount, frequency: freq, nextDate: next, note: note || undefined };
+    saveRecurring(recurring);
+  }
+  buildRecurringList();
+  closeModal('modal-recurring');
+  toast('Recorrência atualizada!', 'success');
+}
+window.saveRecurringEdit = saveRecurringEdit;
+
+export function deleteRecurring(id) {
+  const useId = id || _recurringEditingId;
+  if (!useId) return;
+  if (!confirm('Excluir esta recorrência?')) return;
+  saveRecurring(loadRecurring().filter(r => r.id !== useId));
+  buildRecurringList();
+  closeModal('modal-recurring');
+  toast('Recorrência excluída.', 'info');
+}
+window.deleteRecurring = deleteRecurring;
+
+export function toggleRecurring(id) {
+  const recurring = loadRecurring();
+  const r = recurring.find(x => x.id === id);
+  if (r) { r.active = !r.active; saveRecurring(recurring); buildRecurringList(); toast(r.active ? '▶️ Recorrência reativada.' : '⏸️ Recorrência pausada.', 'success'); }
+}
+window.toggleRecurring = toggleRecurring;
+
+export function buildRecurringList() {
+  const list = document.getElementById('recurring-list');
+  if (!list) return;
+  const recurring = loadRecurring();
+  if (recurring.length === 0) {
+    list.innerHTML = `<div style="text-align:center;padding:20px 16px;color:var(--muted);font-size:0.82rem">Nenhuma recorrência criada. Clique em "+ Novo" para adicionar salário, aluguel, assinaturas etc.</div>`;
+    return;
+  }
+  const fL = { weekly:'Semanal', monthly:'Mensal', yearly:'Anual' };
+  list.innerHTML = recurring.map(r => {
+    const isPos = r.amount > 0;
+    const amtStr = `${isPos?'+':''}R$ ${Math.abs(r.amount).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+    const nextFmt = r.nextDate ? new Date(r.nextDate+'T00:00:00').toLocaleDateString('pt-BR') : '—';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);opacity:${r.active?1:0.5}">
+      <div style="font-size:1.3rem;flex-shrink:0">${(r.cat||'').split(' ')[0]||'🔄'}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.desc}</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:2px">${fL[r.frequency]||r.frequency} · Próx: ${nextFmt}</div>
+      </div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.88rem;color:${isPos?'var(--success)':'var(--danger)'};flex-shrink:0">${amtStr}</div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button onclick="toggleRecurring('${r.id}')" title="${r.active?'Pausar':'Reativar'}" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:0.8rem">${r.active?'⏸':'▶️'}</button>
+        <button onclick="openRecurringModal('${r.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:0.8rem">✏️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+window.buildRecurringList = buildRecurringList;
 
 // ── Goal detail ───────────────────────────────────────────────────
 let currentGoalIdx = null;
@@ -918,9 +1789,9 @@ window.choosePlan = choosePlan;
 
 // Mapa de planos pagos: id → { label, price, emoji, tagline, features }
 const PLAN_DEFS = {
-  plus:    { label:'Finno Plus',    price:'R$ 9,90',  emoji:'✨', tagline:'Sem distrações, foco total',              features:['Sem anúncios no app','Todas as categorias','Metas financeiras (até 3)','Interface limpa premium','Suporte por e-mail'] },
-  pro:     { label:'Finno Pro',     price:'R$ 14,90', emoji:'🤖', tagline:'Insights automáticos para economizar mais', features:['Tudo do Plus','IA financeira personalizada','Metas ilimitadas','Relatórios e exportação PDF','Alertas de gastos','Suporte prioritário'] },
-  premium: { label:'Finno Premium', price:'R$ 19,90', emoji:'🏦', tagline:'Suas finanças no automático',              features:['Tudo do Pro','Conexão com +200 bancos','Sincronização automática','Até 2 contas bancárias','7 dias grátis para testar'] },
+  plus:    { label:'FinnoFlow Plus',    price:'R$ 9,90',  emoji:'✨', tagline:'Sem distrações, foco total',              features:['Sem anúncios no app','Todas as categorias','Metas financeiras (até 3)','Interface limpa premium','Suporte por e-mail'] },
+  pro:     { label:'FinnoFlow Pro',     price:'R$ 14,90', emoji:'🤖', tagline:'Insights automáticos para economizar mais', features:['Tudo do Plus','IA financeira personalizada','Metas ilimitadas','Relatórios e exportação PDF','Alertas de gastos','Suporte prioritário'] },
+  premium: { label:'FinnoFlow Premium', price:'R$ 19,90', emoji:'🏦', tagline:'Suas finanças no automático',              features:['Tudo do Pro','Conexão com +200 bancos','Sincronização automática','Até 2 contas bancárias','7 dias grátis para testar'] },
 };
 
 export function showPlanPayment(planId) {
@@ -1078,27 +1949,30 @@ export function applyPlanUI(plan) {
   const emojis = { premium:'🏦', pro:'🤖', plus:'✨', trial:'🔬', expired:'⚠️' };
   if (planEmoji) planEmoji.textContent = emojis[plan] || '⭐';
   if (planNameEl) {
-    const names = { premium:'Finno Premium', pro:'Finno Pro', plus:'Finno Plus', trial:'Trial Premium' };
+    const names = { premium:'FinnoFlow Premium', pro:'FinnoFlow Pro', plus:'FinnoFlow Plus', trial:'Trial Premium' };
     planNameEl.textContent = names[plan] || '';
   }
 
-  // Upsell dinâmico por plano (Free usa section própria, pagos usam plan-upsell-paid)
+  // Upsell discreto por plano (Free usa section própria, pagos usam plan-upsell-paid)
+  // Regra: assinantes NÃO devem ver banners agressivos — upsell só quando faz sentido contextual
   if (upsellEl) {
-    const bStyle = 'width:100%;display:flex;align-items:center;justify-content:space-between;border-radius:11px;padding:11px 14px;font-family:DM Sans,sans-serif;font-size:0.83rem;cursor:pointer;margin-bottom:7px;border:1px solid';
+    const bStyle = 'width:100%;display:flex;align-items:center;justify-content:space-between;border-radius:11px;padding:10px 14px;font-family:DM Sans,sans-serif;font-size:0.82rem;cursor:pointer;margin-bottom:6px;border:1px solid;opacity:0.85';
     if (plan === 'plus') {
+      // Plus: mostrar próximos passos como sugestão, não como pressão
       upsellEl.innerHTML =
-        `<div style="font-size:0.7rem;color:var(--muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px">Fazer upgrade</div>
-        <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('pro'),200)" style="${bStyle} rgba(124,109,250,0.25);background:rgba(124,109,250,0.1);color:var(--text)">
-          <span>🤖 <strong>Pro</strong> — Ativar IA financeira</span><span style="color:var(--accent);font-weight:700;font-family:Syne,sans-serif;white-space:nowrap">R$ 14,90/mês →</span>
+        `<div style="font-size:0.7rem;color:var(--muted);letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px">Próximos recursos disponíveis</div>
+        <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('pro'),200)" style="${bStyle} rgba(124,109,250,0.18);background:rgba(124,109,250,0.06);color:var(--text2)">
+          <span>🤖 <strong>Pro</strong> — Insights com IA</span><span style="color:var(--muted);font-size:0.78rem;white-space:nowrap">R$ 14,90/mês</span>
         </button>
-        <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('premium'),200)" style="${bStyle} rgba(124,109,250,0.35);background:linear-gradient(135deg,rgba(124,109,250,0.15),rgba(250,109,154,0.1));color:var(--text)">
-          <span>🏦 <strong>Premium</strong> — IA + Bancos</span><span style="color:#fa6d9a;font-weight:700;font-family:Syne,sans-serif;white-space:nowrap">R$ 19,90/mês →</span>
+        <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('premium'),200)" style="${bStyle} rgba(124,109,250,0.18);background:rgba(124,109,250,0.06);color:var(--text2)">
+          <span>🏦 <strong>Premium</strong> — IA + banco automático</span><span style="color:var(--muted);font-size:0.78rem;white-space:nowrap">R$ 19,90/mês</span>
         </button>`;
     } else if (plan === 'pro') {
+      // Pro: única sugestão discreta para o Premium
       upsellEl.innerHTML =
-        `<div style="font-size:0.7rem;color:var(--muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px">Fazer upgrade</div>
-        <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('premium'),200)" style="${bStyle} rgba(124,109,250,0.35);background:linear-gradient(135deg,rgba(124,109,250,0.15),rgba(250,109,154,0.1));color:var(--text)">
-          <span>🏦 <strong>Premium</strong> — Conecte seus bancos</span><span style="color:#fa6d9a;font-weight:700;font-family:Syne,sans-serif;white-space:nowrap">R$ 19,90/mês →</span>
+        `<div style="font-size:0.7rem;color:var(--muted);letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px">Próximo nível disponível</div>
+        <button onclick="closeModal('modal-account');setTimeout(()=>showPlanPayment('premium'),200)" style="${bStyle} rgba(124,109,250,0.18);background:rgba(124,109,250,0.06);color:var(--text2)">
+          <span>🏦 <strong>Premium</strong> — Conecte seu banco automaticamente</span><span style="color:var(--muted);font-size:0.78rem;white-space:nowrap">R$ 19,90/mês</span>
         </button>`;
     } else {
       // Premium / Trial / Expired → VIP, sem upsell
@@ -1339,7 +2213,7 @@ function updateHomeGreeting() {
   const firstName = name.split(' ')[0];
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
-  nameEl.textContent = firstName ? greeting + ', ' + firstName + ' 👋' : 'Bem-vindo ao Finno 👋';
+  nameEl.textContent = firstName ? greeting + ', ' + firstName + ' 👋' : 'Bem-vindo ao FinnoFlow 👋';
 }
 window.updateHomeGreeting = updateHomeGreeting;
 
@@ -1715,7 +2589,7 @@ window.maybeShowSimTease = maybeShowSimTease;
 
 const _fmtBRL     = v => `R$ ${Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 const _stripEmoji = s => (s || '').replace(/^[\p{Emoji}\s]+/u, '').trim();
-const _catName    = t => _stripEmoji(t.cat) || 'Sem categoria';
+const _catName    = t => (t.splits && t.splits.length > 0) ? 'Múltiplas categorias' : (_stripEmoji(t.cat) || 'Sem categoria');
 const _round2     = v => Math.round(v * 100) / 100;
 const _PERIOD_LABELS = {
   month: 'Este mês', last30: 'Últimos 30 dias', last90: 'Últimos 90 dias',
@@ -1724,7 +2598,7 @@ const _PERIOD_LABELS = {
 
 function exportFilename(ext) {
   const now = new Date();
-  return `finno-relatorio-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()}.${ext}`;
+  return `finnoflow-relatorio-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()}.${ext}`;
 }
 
 function filterTxForExport(txList, period) {
@@ -1754,13 +2628,19 @@ function updateExportPreview() {
   const income   = _round2(calcIncome(filtered));
   const expenses = _round2(calcExpenses(filtered));
 
+  const balance   = _round2(income - expenses);
   const previewEl = document.getElementById('export-preview');
   if (previewEl) {
-    previewEl.innerHTML = filtered.length === 0
-      ? `<span style="color:var(--muted)">Nenhuma transação no período selecionado.</span>`
-      : `<strong>${filtered.length}</strong> transação(ões) · ${label}<br>` +
-        `<span style="color:#4ade80">↑ Receitas: ${_fmtBRL(income)}</span> &nbsp;` +
-        `<span style="color:#f87171">↓ Despesas: ${_fmtBRL(expenses)}</span>`;
+    if (filtered.length === 0) {
+      previewEl.innerHTML = `<span style="color:var(--muted)">Nenhuma transação no período selecionado.</span>`;
+    } else {
+      const balColor = balance >= 0 ? '#4ade80' : '#f87171';
+      previewEl.innerHTML =
+        `Você está exportando <strong>${filtered.length} transação(ões)</strong> · ${label}<br>` +
+        `<span style="color:#4ade80">↑ Receitas: ${_fmtBRL(income)}</span> &nbsp; ` +
+        `<span style="color:#f87171">↓ Despesas: ${_fmtBRL(expenses)}</span><br>` +
+        `<span style="color:${balColor}">Saldo: ${_fmtBRL(balance)}</span>`;
+    }
   }
 
   const warnEl = document.getElementById('export-count-warning');
@@ -1778,7 +2658,7 @@ window.updateExportPreview = updateExportPreview;
 export function openExportModal() {
   const uid = auth.currentUser?.uid;
   if (!['pro','premium','trial'].includes(getPlanState(uid))) {
-    showUpgrade('Exporte seus dados em Excel ou PDF a partir do Finno Pro.');
+    showUpgrade('Exporte seus dados em Excel ou PDF a partir do FinnoFlow Pro.');
     return;
   }
   document.getElementById('modal-export').classList.add('open');
@@ -1797,30 +2677,76 @@ export function exportToExcel() {
       const period      = document.getElementById('export-period')?.value || 'month';
       const periodLabel = _PERIOD_LABELS[period] || period;
 
-      // ── Aba Transações (9 colunas) ──
+      // ── Constantes de estilo ──
+      const BORDER_THIN = (rgb) => ({ style: 'thin', color: { rgb } });
+      const mkBorder = (rgb) => ({ top: BORDER_THIN(rgb), bottom: BORDER_THIN(rgb), left: BORDER_THIN(rgb), right: BORDER_THIN(rgb) });
+      const BORDER_HEADER = mkBorder('5B21B6');
+      const BORDER_DATA   = mkBorder('DDDDDD');
+      const FMT_BRL = '"R$ "#,##0.00';
+
+      const S_HEADER = {
+        font:      { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 },
+        fill:      { patternType: 'solid', fgColor: { rgb: '6D28D9' } },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        border:    BORDER_HEADER
+      };
+      const S_SECTION = {
+        font:  { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+        fill:  { patternType: 'solid', fgColor: { rgb: '4C1D95' } },
+        border: BORDER_HEADER
+      };
+      const mkRow = (fillRgb) => ({ fill: { patternType: 'solid', fgColor: { rgb: fillRgb } }, border: BORDER_DATA });
+      const mkVal = (fillRgb, fontRgb) => ({ font: { bold: true, color: { rgb: fontRgb } }, fill: { patternType: 'solid', fgColor: { rgb: fillRgb } }, border: BORDER_DATA, alignment: { horizontal: 'right' } });
+
+      // ── Aba Transações ──
       const txHeaders = ['Data','Descrição','Categoria','Subcategoria','Tipo','Valor (R$)','Conta/Banco','Origem','Observação'];
-      const sorted = [...filtered].sort((a,b) => new Date(b.date) - new Date(a.date));
-      const txRows = sorted.map(t => [
-        new Date(t.date+'T00:00:00').toLocaleDateString('pt-BR'),
-        t.desc || '',
-        _catName(t),
-        '—',
-        t.amount > 0 ? 'Receita' : 'Despesa',
-        _round2(t.amount),        // número real com sinal: receita > 0, despesa < 0
-        t.bank || 'Manual',
-        (t.bank && t.bank !== 'Manual') ? 'Banco' : 'Manual',
-        '—'
-      ]);
+      const sorted = [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
+      const txRows = sorted.flatMap(t => {
+        const base = [
+          new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR'),
+          t.desc || '',
+          _catName(t),
+          (t.splits && t.splits.length > 0) ? t.splits.map(s => _stripEmoji(s.cat) || s.cat).join(', ') : '—',
+          t.amount > 0 ? 'Receita' : 'Despesa',
+          _round2(t.amount),
+          t.bank || 'Manual',
+          (t.bank && t.bank !== 'Manual') ? 'Banco' : 'Manual',
+          t.note || '—'
+        ];
+        return [base];
+      });
 
       const wsTx = XLSX.utils.aoa_to_sheet([txHeaders, ...txRows]);
-
-      // Formatar coluna Valor (índice 5) como número decimal
       const range = XLSX.utils.decode_range(wsTx['!ref'] || 'A1');
-      for (let r = 1; r <= range.e.r; r++) {
-        const cell = wsTx[XLSX.utils.encode_cell({ r, c: 5 })];
-        if (cell) cell.z = '#,##0.00';
+
+      // Cabeçalho (linha 0) — roxo com texto branco
+      for (let c = 0; c <= range.e.c; c++) {
+        const ref = XLSX.utils.encode_cell({ r: 0, c });
+        if (!wsTx[ref]) wsTx[ref] = { t: 's', v: '' };
+        wsTx[ref].s = S_HEADER;
       }
-      wsTx['!cols'] = [{wch:12},{wch:32},{wch:18},{wch:14},{wch:10},{wch:14},{wch:18},{wch:10},{wch:20}];
+
+      // Linhas de dados — verde receita, vermelho despesa
+      for (let r = 1; r <= range.e.r; r++) {
+        const isIncome   = txRows[r - 1]?.[4] === 'Receita';
+        const fillRgb    = isIncome ? 'DCFCE7' : 'FEF2F2';
+        const valFillRgb = isIncome ? 'BBF7D0' : 'FECACA';
+        const valFontRgb = isIncome ? '166534' : '991B1B';
+
+        for (let c = 0; c <= range.e.c; c++) {
+          const ref = XLSX.utils.encode_cell({ r, c });
+          if (!wsTx[ref]) wsTx[ref] = { t: 's', v: '' };
+          if (c === 5) {
+            wsTx[ref].s = mkVal(valFillRgb, valFontRgb);
+            wsTx[ref].z = FMT_BRL;
+          } else {
+            wsTx[ref].s = mkRow(fillRgb);
+          }
+        }
+      }
+
+      wsTx['!cols']   = [{ wch: 12 },{ wch: 34 },{ wch: 18 },{ wch: 14 },{ wch: 10 },{ wch: 16 },{ wch: 18 },{ wch: 10 },{ wch: 20 }];
+      wsTx['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft', state: 'frozen' };
 
       // ── Aba Resumo ──
       const income   = _round2(calcIncome(filtered));
@@ -1829,40 +2755,104 @@ export function exportToExcel() {
 
       const catMap = {};
       filtered.forEach(t => {
-        const c = _catName(t);
-        catMap[c] = _round2((catMap[c] || 0) + t.amount);
+        if (t.splits && t.splits.length > 0) {
+          t.splits.forEach(sp => {
+            const c = _stripEmoji(sp.cat) || sp.cat || 'Sem categoria';
+            catMap[c] = _round2((catMap[c] || 0) + (t.amount < 0 ? -sp.amount : sp.amount));
+          });
+        } else {
+          const c = _catName(t);
+          catMap[c] = _round2((catMap[c] || 0) + t.amount);
+        }
       });
       const catRows = Object.entries(catMap)
-        .sort((a,b) => Math.abs(b[1]) - Math.abs(a[1]))
-        .map(([c,v]) => [c, v > 0 ? 'Receita' : 'Despesa', _round2(Math.abs(v))]);
+        .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+        .map(([c, v]) => {
+          const isInc = v > 0;
+          const absV  = _round2(Math.abs(v));
+          const pct   = isInc
+            ? (income   > 0 ? (absV / income   * 100).toFixed(1) + '%' : '—')
+            : (expenses > 0 ? (absV / expenses * 100).toFixed(1) + '%' : '—');
+          return [c, isInc ? 'Receita' : 'Despesa', absV, pct];
+        });
 
       const summaryData = [
-        ['Relatório Finno', periodLabel],
-        ['Gerado em', new Date().toLocaleDateString('pt-BR')],
+        ['FinnoFlow — Relatório Financeiro', periodLabel, '', ''],
+        ['Gerado em', new Date().toLocaleDateString('pt-BR'), '', ''],
         [],
-        ['RESUMO FINANCEIRO','',''],
-        ['','Valor (R$)',''],
-        ['Total Receitas', income, ''],
-        ['Total Despesas', expenses, ''],
-        ['Saldo Final', balance, ''],
+        ['RESUMO DO PERÍODO', '', '', ''],
+        ['Item', 'Valor (R$)', '', ''],
+        ['Total Receitas',  income,   '', ''],
+        ['Total Despesas',  expenses, '', ''],
+        ['Saldo Final',     balance,  '', ''],
         [],
-        ['TOTAIS POR CATEGORIA','',''],
-        ['Categoria','Tipo','Total (R$)'],
+        ['TOTAIS POR CATEGORIA', '', '', ''],
+        ['Categoria', 'Tipo', 'Total (R$)', '% do Tipo'],
         ...catRows
       ];
       const wsSum = XLSX.utils.aoa_to_sheet(summaryData);
-      wsSum['!cols'] = [{wch:28},{wch:12},{wch:16}];
-
-      // Formatar valores numéricos no resumo
-      [[5,1],[6,1],[7,1]].forEach(([r,c]) => {
-        const cell = wsSum[XLSX.utils.encode_cell({r,c})];
-        if (cell) cell.z = '#,##0.00';
-      });
       const sumRange = XLSX.utils.decode_range(wsSum['!ref'] || 'A1');
-      for (let r = 11; r <= sumRange.e.r; r++) {
-        const cell = wsSum[XLSX.utils.encode_cell({r, c:2})];
-        if (cell) cell.z = '#,##0.00';
+
+      // Linha 0 — título principal
+      for (let c = 0; c <= 3; c++) {
+        const cell = wsSum[XLSX.utils.encode_cell({ r: 0, c })];
+        if (cell) cell.s = { font: { bold: true, sz: 13, color: { rgb: '4C1D95' } }, fill: { patternType: 'solid', fgColor: { rgb: 'EDE9FE' } }, border: BORDER_DATA };
       }
+      // Linha 1 — data geração
+      for (let c = 0; c <= 3; c++) {
+        const cell = wsSum[XLSX.utils.encode_cell({ r: 1, c })];
+        if (cell) cell.s = { font: { sz: 9, color: { rgb: '6B7280' } }, fill: { patternType: 'solid', fgColor: { rgb: 'EDE9FE' } }, border: BORDER_DATA };
+      }
+      // Linha 3 — seção RESUMO
+      for (let c = 0; c <= 3; c++) {
+        const cell = wsSum[XLSX.utils.encode_cell({ r: 3, c })];
+        if (cell) cell.s = S_SECTION;
+      }
+      // Linha 4 — cabeçalho colunas resumo
+      for (let c = 0; c <= 1; c++) {
+        const cell = wsSum[XLSX.utils.encode_cell({ r: 4, c })];
+        if (cell) cell.s = S_HEADER;
+      }
+      // Linhas 5–7 — receitas, despesas, saldo
+      [
+        { r: 5, isInc: true  },
+        { r: 6, isInc: false },
+        { r: 7, isInc: balance >= 0 }
+      ].forEach(({ r, isInc }) => {
+        const fillRgb = isInc ? 'DCFCE7' : 'FEF2F2';
+        const fontRgb = isInc ? '166534' : '991B1B';
+        const cA = wsSum[XLSX.utils.encode_cell({ r, c: 0 })];
+        const cB = wsSum[XLSX.utils.encode_cell({ r, c: 1 })];
+        if (cA) cA.s = { font: { bold: true }, fill: { patternType: 'solid', fgColor: { rgb: fillRgb } }, border: BORDER_DATA };
+        if (cB) { cB.s = mkVal(fillRgb, fontRgb); cB.z = FMT_BRL; }
+      });
+      // Linha 9 — seção CATEGORIAS
+      for (let c = 0; c <= 3; c++) {
+        const cell = wsSum[XLSX.utils.encode_cell({ r: 9, c })];
+        if (cell) cell.s = S_SECTION;
+      }
+      // Linha 10 — cabeçalho categorias
+      for (let c = 0; c <= 3; c++) {
+        const cell = wsSum[XLSX.utils.encode_cell({ r: 10, c })];
+        if (cell) cell.s = S_HEADER;
+      }
+      // Linhas 11+ — dados por categoria
+      for (let r = 11; r <= sumRange.e.r; r++) {
+        const typeCell = wsSum[XLSX.utils.encode_cell({ r, c: 1 })];
+        const isInc    = typeCell?.v === 'Receita';
+        const fillRgb  = isInc ? 'DCFCE7' : 'FEF2F2';
+        const valFill  = isInc ? 'BBF7D0' : 'FECACA';
+        const valFont  = isInc ? '166534' : '991B1B';
+        for (let c = 0; c <= 3; c++) {
+          const ref = XLSX.utils.encode_cell({ r, c });
+          if (!wsSum[ref]) wsSum[ref] = { t: 's', v: '' };
+          if (c === 2) { wsSum[ref].s = mkVal(valFill, valFont); wsSum[ref].z = FMT_BRL; }
+          else         { wsSum[ref].s = mkRow(fillRgb); }
+        }
+      }
+
+      wsSum['!cols']   = [{ wch: 28 },{ wch: 12 },{ wch: 16 },{ wch: 12 }];
+      wsSum['!freeze'] = { xSplit: 0, ySplit: 11, topLeftCell: 'A12', activePane: 'bottomLeft', state: 'frozen' };
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, wsTx, 'Transações');
@@ -1891,7 +2881,7 @@ export function exportToPDF() {
     try {
       const { jsPDF } = jspdf;
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const MARGIN = 18, PAGE_W = 210, ACCENT = [130, 10, 209];
+      const MARGIN = 18, PAGE_W = 210, ACCENT = [138, 5, 190];
       const period      = document.getElementById('export-period')?.value || 'month';
       const periodLabel = _PERIOD_LABELS[period] || period;
       const userName    = auth.currentUser?.displayName || auth.currentUser?.email || 'Usuário';
@@ -1902,7 +2892,7 @@ export function exportToPDF() {
       doc.rect(0, 0, PAGE_W, 28, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold'); doc.setFontSize(20);
-      doc.text('finno', MARGIN, 16);
+      doc.text('FinnoFlow', MARGIN, 16);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
       doc.text(`${userName}  ·  ${periodLabel}  ·  Gerado em ${dateStr}`, MARGIN, 23);
 
@@ -1932,8 +2922,15 @@ export function exportToPDF() {
       // ── Gráfico de barras horizontais (top 7 categorias de despesa) ──
       const catMap = {};
       filtered.filter(t => t.amount < 0).forEach(t => {
-        const c = _catName(t);
-        catMap[c] = _round2((catMap[c] || 0) + Math.abs(t.amount));
+        if (t.splits && t.splits.length > 0) {
+          t.splits.forEach(sp => {
+            const c = _stripEmoji(sp.cat) || sp.cat || 'Sem categoria';
+            catMap[c] = _round2((catMap[c] || 0) + Math.abs(sp.amount));
+          });
+        } else {
+          const c = _catName(t);
+          catMap[c] = _round2((catMap[c] || 0) + Math.abs(t.amount));
+        }
       });
       const catEntries = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
 
@@ -2005,7 +3002,7 @@ export function exportToPDF() {
       for (let p = 1; p <= pages; p++) {
         doc.setPage(p);
         doc.setFontSize(7); doc.setTextColor(160, 160, 180); doc.setFont('helvetica', 'normal');
-        doc.text(`finno · Relatório gerado em ${dateStr} · Página ${p} de ${pages}`, MARGIN, 290);
+        doc.text(`FinnoFlow · Relatório gerado em ${dateStr} · Página ${p} de ${pages}`, MARGIN, 290);
       }
 
       doc.save(exportFilename('pdf'));

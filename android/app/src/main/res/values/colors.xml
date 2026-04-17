@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Cor principal do Finno (#0d0d1a — fundo escuro da splash) -->
+    <!-- Cor principal do FinnoFlow (#0d0d1a — fundo escuro da splash) -->
     <color name="colorPrimary">#FF0D0D1A</color>
     <!-- Mesmo fundo para splash screen -->
     <color name="colorSplash">#FF0D0D1A</color>

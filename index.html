@@ -6,13 +6,13 @@
   <meta name="theme-color" content="#0f0b1e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Finno — Suas finanças no automático. Controle financeiro inteligente conectado aos seus bancos.">
-  <title>Finno — Suas finanças no automático</title>
+  <meta name="description" content="FinnoFlow — Suas finanças no automático. Controle financeiro inteligente conectado aos seus bancos.">
+  <title>FinnoFlow — Suas finanças no automático</title>
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 
   <!-- Styles -->
   <link rel="stylesheet" href="css/styles.css">
@@ -21,7 +21,7 @@
 
 <!-- APP LOADING (shown while Firebase checks auth state) -->
 <div id="app-loading">
-  <div class="app-loading-logo">finno</div>
+  <div class="app-loading-logo"><span class="logo-finno">Finno</span><span class="logo-flow">Flow</span></div>
   <div class="app-loading-spinner"></div>
 </div>
 
@@ -31,7 +31,7 @@
 <!-- PWA INSTALL BANNER -->
 <div id="install-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:14px 20px;z-index:9999;align-items:center;gap:12px;box-shadow:0 -8px 32px rgba(0,0,0,0.4)">
   <div style="flex:1">
-    <div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;margin-bottom:2px">Instalar o Finno</div>
+    <div style="font-family:Poppins,Syne,sans-serif;font-weight:700;font-size:0.9rem;margin-bottom:2px">Instalar o FinnoFlow</div>
     <div style="font-size:0.75rem;color:var(--muted)">Adicione à tela inicial para acesso rápido</div>
   </div>
   <button onclick="installApp()" style="background:var(--accent);color:white;border:none;border-radius:10px;padding:10px 18px;font-family:Syne,sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;flex-shrink:0">Instalar</button>
@@ -193,7 +193,7 @@
 
     <!-- Logo + Headline -->
     <div class="splash-top">
-      <div class="splash-logo">finno</div>
+      <div class="splash-logo"><span class="logo-finno">Finno</span><span class="logo-flow">Flow</span></div>
       <h1 class="splash-tagline">Suas finanças<br>no automático</h1>
       <p class="splash-sub">Comece grátis e descubra para onde seu dinheiro<br>está indo — em minutos.</p>
     </div>
@@ -263,7 +263,7 @@
   <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px 24px;background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(124,109,250,0.1) 0%,transparent 70%)">
   <div class="auth-card">
     <div class="auth-back" onclick="goBackToSplash()">← Voltar</div>
-    <div class="auth-logo">finno</div>
+    <div class="auth-logo"><span class="logo-finno">Finno</span><span class="logo-flow">Flow</span></div>
     <div class="auth-tagline">Suas finanças no automático</div>
 
     <!-- ══ REGISTER ══════════════════════════════════════════════ -->
@@ -450,7 +450,7 @@
 <!-- ===== SCREEN 0C: CHOOSE PLAN ===== -->
 <div id="screen-plan" class="screen" style="overflow-y:auto;padding-bottom:32px">
   <div class="plan-header">
-    <div class="splash-logo" style="font-size:1.6rem;margin-bottom:8px">finno</div>
+    <div class="splash-logo" style="font-size:1.6rem;margin-bottom:8px"><span class="logo-finno">Finno</span><span class="logo-flow">Flow</span></div>
     <h2 style="font-size:1.3rem;margin-bottom:6px">Escolha o controle ideal para suas finanças</h2>
     <p style="font-size:0.82rem;color:var(--muted)">Comece grátis e evolua para o automático total</p>
   </div>
@@ -459,7 +459,7 @@
     <!-- PLUS -->
     <div class="plan-card" onclick="choosePlan('plus')" style="border:1px solid var(--border)">
       <div class="plan-icon">✨</div>
-      <div class="plan-name">Finno Plus</div>
+      <div class="plan-name">FinnoFlow Plus</div>
       <div class="plan-price">R$ 9,90 <span>/mês</span></div>
       <div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-bottom:12px;font-style:italic">Sem distrações, foco total</div>
       <div class="plan-features">
@@ -477,7 +477,7 @@
     <div class="plan-card pro-card" onclick="choosePlan('pro')" style="border:2px solid var(--accent);position:relative">
       <div class="plan-badge" style="background:linear-gradient(135deg,var(--accent),#a020e0)">🔥 MAIS POPULAR</div>
       <div class="plan-icon">🤖</div>
-      <div class="plan-name">Finno Pro</div>
+      <div class="plan-name">FinnoFlow Pro</div>
       <div class="plan-price">R$ 14,90 <span>/mês</span></div>
       <div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-bottom:6px;font-style:italic">Insights automáticos para economizar mais</div>
       <div style="display:inline-flex;align-items:center;gap:5px;background:rgba(0,200,150,0.12);border:1px solid rgba(0,200,150,0.25);border-radius:8px;padding:4px 10px;font-size:0.72rem;color:#00c896;font-weight:600;margin-bottom:12px">💰 Usuários economizam em média R$ 580/mês com a IA</div>
@@ -498,7 +498,7 @@
     <div class="plan-card premium" onclick="choosePlan('premium')">
       <div class="plan-badge" style="background:linear-gradient(135deg,#1a1040,#3a1060);border:1px solid rgba(255,255,255,0.15)">🏦 COMPLETO — 7 DIAS GRÁTIS</div>
       <div class="plan-icon">🏦</div>
-      <div class="plan-name">Finno Premium</div>
+      <div class="plan-name">FinnoFlow Premium</div>
       <div class="plan-price">R$ 19,90 <span>/mês</span></div>
       <div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-bottom:12px;font-style:italic">Suas finanças no automático</div>
       <div class="plan-features">
@@ -592,7 +592,7 @@
       </div>
     </div>
     <div style="background:linear-gradient(135deg,rgba(130,10,209,0.12),rgba(224,64,251,0.06));border:1px solid rgba(130,10,209,0.25);border-radius:20px;padding:20px;margin-bottom:100px">
-      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;margin-bottom:12px">🤖 Insights com IA <span style="font-size:0.72rem;font-weight:400;color:var(--accent);background:rgba(130,10,209,0.15);padding:2px 8px;border-radius:99px;margin-left:6px">Finno Pro</span></div>
+      <div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;margin-bottom:12px">🤖 Insights com IA <span style="font-size:0.72rem;font-weight:400;color:var(--accent);background:rgba(138,5,190,0.15);padding:2px 8px;border-radius:99px;margin-left:6px">FinnoFlow Pro</span></div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start">
           <span style="font-size:1.1rem;flex-shrink:0">📊</span>
@@ -682,7 +682,7 @@
       </div>
       <div class="connect-state-card">
         <div style="text-align:center;margin-bottom:20px">
-          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px">FINNO PREMIUM</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px">FINNOFLOW PREMIUM</div>
           <div style="font-family:Syne,sans-serif;font-weight:800;font-size:2.2rem">R$ 19,90<span style="font-size:1rem;font-weight:400;color:var(--muted)">/mês</span></div>
           <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">Máximo de 2 bancos · Cancele quando quiser</div>
         </div>
@@ -712,7 +712,7 @@
 
 <!-- ===== SCREEN 2: LOADING ===== -->
 <div id="screen-loading" class="screen">
-  <div class="loading-logo">finno</div>
+  <div class="loading-logo"><span class="logo-finno">Finno</span><span class="logo-flow">Flow</span></div>
   <div class="loading-steps" id="loading-steps">
     <div class="loading-step" id="step1"><div class="step-icon">🔐</div><span>Autenticando com Open Finance BCB...</span></div>
     <div class="loading-step" id="step2"><div class="step-icon">🏦</div><span>Conectando aos bancos selecionados...</span></div>
@@ -728,7 +728,7 @@
 <div id="screen-dashboard" class="screen">
 
   <div class="topnav" style="background:rgba(6,13,31,0.92);border-bottom:1px solid rgba(255,255,255,0.06)">
-    <div class="nav-logo">finno</div>
+    <div class="nav-logo"><span class="logo-finno">Finno</span><span class="logo-flow">Flow</span></div>
     <div class="nav-right">
       <div class="nav-sync" onclick="syncData()" style="background:rgba(0,200,150,0.08);border-color:rgba(0,200,150,0.2);color:#00c896">
         <div class="sync-dot" style="background:#00c896"></div>
@@ -757,7 +757,7 @@
     <div class="tab-panel active" id="panel-visao-geral">
       <div class="home-hero">
         <div class="home-greeting">Olá,</div>
-        <div class="home-name" id="home-user-name">bem-vindo ao Finno 👋</div>
+        <div class="home-name" id="home-user-name">bem-vindo ao FinnoFlow 👋</div>
         <div class="home-balance-label">Saldo total</div>
         <div class="home-balance-value">
           <span class="currency">R$</span><span id="home-balance-int">12.847</span><span style="font-size:1.5rem;font-weight:600;color:rgba(255,255,255,0.5)">,30</span>
@@ -858,15 +858,33 @@
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <select id="filter-period" onchange="applyFilters()" style="flex:1;min-width:130px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.82rem;outline:none">
             <option value="today">Hoje</option><option value="week">Esta semana</option>
-            <option value="month" selected>Este mês</option><option value="last30">Últimos 30 dias</option><option value="last90">Últimos 90 dias</option>
+            <option value="month" selected>Este mês</option><option value="last30">Últimos 30 dias</option>
+            <option value="last90">Últimos 90 dias</option><option value="last6m">Últimos 6 meses</option>
             <option value="all">Todo período</option>
           </select>
+          <select id="filter-bank" onchange="applyFilters()" style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.82rem;outline:none">
+            <option value="all">Todas contas</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <button onclick="clearFilters()" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 14px;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.82rem;cursor:pointer;white-space:nowrap">✕ Limpar</button>
           <button onclick="openExportModal()" style="background:var(--accent);border:none;border-radius:10px;padding:9px 14px;color:#fff;font-family:DM Sans,sans-serif;font-size:0.82rem;cursor:pointer;white-space:nowrap;font-weight:600">📥 Exportar</button>
+          <button onclick="openRulesModal()" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 14px;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.82rem;cursor:pointer;white-space:nowrap" title="Regras de categorização">🏷️ Regras</button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--muted);cursor:pointer;white-space:nowrap;padding:9px 0">
+            <input type="checkbox" id="filter-show-hidden" onchange="applyFilters()" style="accent-color:var(--accent);cursor:pointer">
+            Mostrar ocultas
+          </label>
         </div>
         <div id="filter-summary" style="margin-top:8px;font-size:0.78rem;color:var(--muted)"></div>
       </div>
       <div class="tx-list" id="tx-list"></div>
+      <div style="margin-top:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <h3 style="font-family:Syne,sans-serif;font-size:0.92rem;font-weight:700;margin:0;color:var(--text2)">🔄 Lançamentos Recorrentes</h3>
+          <button onclick="openRecurringModal()" style="background:var(--accent);border:none;border-radius:8px;padding:6px 12px;color:#fff;font-size:0.78rem;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:600">+ Novo</button>
+        </div>
+        <div id="recurring-list"></div>
+      </div>
     </div>
 
     <!-- CATEGORIAS -->
@@ -883,7 +901,11 @@
           </select>
         </div>
       </div>
-      <div class="section-header"><h3>Por categoria</h3><span id="cat-filter-info" style="font-size:0.75rem;color:var(--muted)"></span></div>
+      <div id="budget-widget" style="margin-bottom:16px"></div>
+      <div class="section-header" style="display:flex;align-items:center;justify-content:space-between">
+        <h3>Por categoria</h3>
+        <button onclick="openCatManagerModal()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:5px 12px;color:var(--muted);font-size:0.78rem;cursor:pointer;font-family:DM Sans,sans-serif">🏷️ Gerenciar</button>
+      </div>
       <div class="cat-list" id="cat-list"></div>
 
       <!-- Category Detail (inline) -->
@@ -922,8 +944,8 @@
       <div class="paywall-overlay" id="paywall-metas" style="display:none">
         <div class="paywall-icon">🎯</div>
         <div class="paywall-title">Metas financeiras</div>
-        <div class="paywall-sub">Defina metas com o Finno Premium.</div>
-        <button class="paywall-btn" onclick="showUpgrade('Desbloqueie metas financeiras com o Finno Premium por apenas R$ 19,90/mês.')">🔓 Desbloquear Premium</button>
+        <div class="paywall-sub">Defina metas com o FinnoFlow Premium.</div>
+        <button class="paywall-btn" onclick="showUpgrade('Desbloqueie metas financeiras com o FinnoFlow Premium por apenas R$ 19,90/mês.')">🔓 Desbloquear Premium</button>
       </div>
       <!-- FAB exclusivo do painel Metas -->
       <button class="panel-fab" onclick="openGoalModal()" title="Nova meta">+</button>
@@ -993,7 +1015,7 @@
             <div style="font-size:0.78rem;color:rgba(255,255,255,0.55);display:flex;gap:8px;align-items:center;text-align:left"><span>🎯</span> Sugestões personalizadas para economizar</div>
             <div style="font-size:0.78rem;color:rgba(255,255,255,0.55);display:flex;gap:8px;align-items:center;text-align:left"><span>🔔</span> Alertas de gastos em tempo real</div>
           </div>
-          <button class="paywall-btn" onclick="showUpgrade('Desbloqueie insights com IA a partir do Finno Pro por R$ 14,90/mês.')">🚀 Ver planos →</button>
+          <button class="paywall-btn" onclick="showUpgrade('Desbloqueie insights com IA a partir do FinnoFlow Pro por R$ 14,90/mês.')">🚀 Ver planos →</button>
           <div style="font-size:0.72rem;color:var(--muted);margin-top:8px">Pro a partir de R$ 14,90 · Premium com trial 7 dias grátis</div>
         </div>
       </div>
@@ -1017,7 +1039,7 @@
 <div class="modal-overlay" id="modal-tx">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
-    <div class="modal-title">Adicionar transação</div>
+    <div class="modal-title" id="modal-tx-title">Adicionar transação</div>
     <div class="form-group"><label>Tipo</label><select id="tx-type"><option>Gasto</option><option>Receita</option></select></div>
     <div class="form-group"><label>Descrição</label><input type="text" id="tx-desc" placeholder="Ex: Supermercado Pão de Açúcar"></div>
     <div class="form-group"><label>Valor (R$)</label><input type="number" id="tx-val" placeholder="0,00" step="0.01"></div>
@@ -1034,11 +1056,13 @@
         <option>🚗 Transporte</option>
         <option>💰 Salário</option>
         <option>📈 Investimento</option>
-        <option>🔧 Outros</option>
+        <option selected>🔧 Outros</option>
       </select>
     </div>
     <div class="form-group"><label>Data <span style="color:var(--muted);font-weight:400;font-size:0.78rem">(opcional — padrão: hoje)</span></label><input type="date" id="tx-date"></div>
-    <button class="btn-primary" onclick="addTransaction()" style="margin-top:8px">Salvar transação</button>
+    <div class="form-group"><label>Observação <span style="color:var(--muted);font-weight:400;font-size:0.78rem">(opcional)</span></label><input type="text" id="tx-note" placeholder="Ex: Parcelado em 3x"></div>
+    <button class="btn-primary" id="modal-tx-save-btn" onclick="addTransaction()" style="margin-top:8px">Salvar transação</button>
+    <button id="modal-tx-delete-btn" onclick="window._deleteTxFromModal()" style="display:none;width:100%;background:none;border:1px solid var(--danger);border-radius:12px;color:var(--danger);padding:13px;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px;font-size:0.88rem">🗑️ Excluir transação</button>
     <button onclick="closeModal('modal-tx')" style="width:100%;background:none;border:none;color:var(--muted);padding:14px;cursor:pointer;font-family:'DM Sans',sans-serif">Cancelar</button>
   </div>
 </div>
@@ -1082,7 +1106,7 @@
       <div style="background:var(--surface2);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="showPlanPayment('pro');closeModal('modal-upgrade')">
         <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#7c6dfa,#6090ff);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0">🤖</div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:0.88rem;font-weight:700">Finno Pro</div>
+          <div style="font-size:0.88rem;font-weight:700">FinnoFlow Pro</div>
           <div style="font-size:0.73rem;color:var(--muted)">IA financeira + metas ilimitadas</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
@@ -1094,7 +1118,7 @@
         <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--accent),#a020e0);color:white;font-size:0.62rem;font-weight:700;padding:3px 10px;border-radius:99px;white-space:nowrap">7 DIAS GRÁTIS</div>
         <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#7c6dfa,#fa6d9a);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0">🏦</div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:0.88rem;font-weight:700">Finno Premium</div>
+          <div style="font-size:0.88rem;font-weight:700">FinnoFlow Premium</div>
           <div style="font-size:0.73rem;color:var(--muted)">Tudo do Pro + bancos conectados</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
@@ -1181,7 +1205,7 @@
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
           <span style="font-size:1.5rem" id="active-plan-emoji">⭐</span>
           <div>
-            <div style="font-size:0.88rem;font-weight:600" id="active-plan-name">Finno Premium</div>
+            <div style="font-size:0.88rem;font-weight:600" id="active-plan-name">FinnoFlow Premium</div>
             <div style="font-size:0.75rem;color:var(--success)">✓ Ativo · assinatura mensal</div>
           </div>
         </div>
@@ -1208,7 +1232,7 @@
         <div style="font-size:0.85rem;font-weight:500">Excluir minha conta</div>
       </div>
     </div>
-    <div style="text-align:center;margin-top:12px;font-size:0.7rem;color:var(--muted)">Finno v1.1</div>
+    <div style="text-align:center;margin-top:12px;font-size:0.7rem;color:var(--muted)">FinnoFlow v1.1</div>
   </div>
 </div>
 
@@ -1223,6 +1247,169 @@
     </div>
     <button class="btn-primary" onclick="doLogout()" style="background:var(--danger);margin-bottom:10px">Sim, sair</button>
     <button onclick="closeModal('modal-logout')" style="width:100%;background:none;border:none;color:var(--muted);padding:14px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.9rem">Cancelar</button>
+  </div>
+</div>
+
+<!-- ===== MODAL: GERENCIADOR DE CATEGORIAS ===== -->
+<div class="modal-overlay" id="modal-cat-manager">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="modal-title" style="margin:0">Categorias</div>
+      <button onclick="openCatEditor()" style="background:var(--accent);border:none;border-radius:8px;padding:7px 14px;color:#fff;font-size:0.82rem;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:600">+ Nova</button>
+    </div>
+    <div id="cat-manager-list"></div>
+    <button onclick="closeModal('modal-cat-manager')" style="width:100%;margin-top:16px;background:none;border:1px solid var(--border);border-radius:12px;padding:13px;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.88rem;cursor:pointer">Fechar</button>
+  </div>
+</div>
+
+<!-- ===== MODAL: EDITOR DE CATEGORIA ===== -->
+<div class="modal-overlay" id="modal-cat-editor">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="cat-editor-title">Nova categoria</div>
+    <input type="hidden" id="cat-edit-id">
+    <div class="form-group">
+      <label>Emoji</label>
+      <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:6px">
+        🛒 🏠 🚗 💊 🎮 📚 ✈️ 🐾 🎵 🏋️ 🍕 ☕ 🎁 💅 🔧 🏦 💼 🐶 🌱 📦 🎯 🔑 🧴 👶 🏥 🎓 🎨 📱 💡 🎬 🏪 🧹
+      </div>
+      <input type="text" id="cat-edit-emoji" placeholder="Cole ou escreva um emoji" style="margin-top:8px" maxlength="4">
+    </div>
+    <div class="form-group"><label>Nome da categoria</label><input type="text" id="cat-edit-name" placeholder="Ex: Pets, Academia, Farmácia..."></div>
+    <button class="btn-primary" onclick="saveCatEditor()" style="margin-top:4px">Salvar categoria</button>
+    <button onclick="closeModal('modal-cat-editor')" style="width:100%;margin-top:8px;background:none;border:1px solid var(--border);border-radius:12px;padding:13px;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.88rem;cursor:pointer">Cancelar</button>
+  </div>
+</div>
+
+<!-- ===== MODAL: SPLIT TRANSACTION ===== -->
+<div class="modal-overlay" id="modal-split">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✂️ Dividir transação</div>
+    <div style="font-size:0.82rem;color:var(--muted);margin-bottom:14px;line-height:1.5">Divida esta transação em múltiplas categorias. A soma deve ser igual ao valor total.</div>
+
+    <!-- Barra de progresso -->
+    <div style="background:var(--surface2);border-radius:12px;padding:12px 14px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:0.78rem;color:var(--muted);font-weight:600">Total a alocar</span>
+        <span id="split-total-label" style="font-size:0.88rem;font-weight:700;color:var(--text)">R$ 0,00</span>
+      </div>
+      <div style="height:6px;background:var(--border);border-radius:99px;overflow:hidden">
+        <div id="split-progress-bar" style="height:100%;width:0%;background:var(--accent);border-radius:99px;transition:width 0.2s,background 0.2s"></div>
+      </div>
+      <div id="split-remaining-label" style="font-size:0.72rem;color:var(--muted);margin-top:6px;text-align:right"></div>
+    </div>
+
+    <!-- Lista dinâmica de splits -->
+    <div id="split-rows" style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px"></div>
+
+    <button onclick="addSplitRow()" style="width:100%;background:none;border:1px dashed var(--border);border-radius:12px;padding:11px;color:var(--accent);font-family:DM Sans,sans-serif;font-size:0.85rem;cursor:pointer;margin-bottom:8px">+ Adicionar linha</button>
+
+    <button class="btn-primary" onclick="saveSplits()" style="margin-top:4px">Salvar divisão</button>
+    <button id="split-clear-btn" onclick="clearSplits()" style="display:none;width:100%;background:none;border:1px solid var(--danger);border-radius:12px;color:var(--danger);padding:13px;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px;font-size:0.88rem">🗑️ Remover divisão</button>
+    <button onclick="closeModal('modal-split')" style="width:100%;background:none;border:none;color:var(--muted);padding:14px;cursor:pointer;font-family:DM Sans,sans-serif;margin-top:4px">Cancelar</button>
+  </div>
+</div>
+
+<!-- ===== MODAL: RECURRING ===== -->
+<div class="modal-overlay" id="modal-recurring">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-recurring-title">Nova recorrência</div>
+    <div class="form-group"><label>Tipo</label><select id="rec-type"><option>Gasto</option><option>Receita</option></select></div>
+    <div class="form-group"><label>Descrição</label><input type="text" id="rec-desc" placeholder="Ex: Aluguel, Salário, Netflix"></div>
+    <div class="form-group"><label>Valor (R$)</label><input type="number" id="rec-val" placeholder="0,00" step="0.01"></div>
+    <div class="form-group">
+      <label>Categoria</label>
+      <select id="rec-cat">
+        <option>🛒 Alimentação</option>
+        <option>📱 Assinaturas</option>
+        <option>👗 Compras</option>
+        <option>📚 Estudos</option>
+        <option>🎮 Lazer</option>
+        <option>🏠 Moradia</option>
+        <option>💊 Saúde</option>
+        <option>🚗 Transporte</option>
+        <option>💰 Salário</option>
+        <option>📈 Investimento</option>
+        <option selected>🔧 Outros</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Frequência</label>
+      <select id="rec-freq">
+        <option value="weekly">Semanal</option>
+        <option value="monthly" selected>Mensal</option>
+        <option value="yearly">Anual</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Próxima data</label><input type="date" id="rec-next"></div>
+    <div class="form-group"><label>Observação <span style="color:var(--muted);font-weight:400;font-size:0.78rem">(opcional)</span></label><input type="text" id="rec-note" placeholder="Ex: Conta 1234"></div>
+    <button class="btn-primary" id="recurring-save-btn" onclick="addRecurring()" style="margin-top:8px">Criar recorrência</button>
+    <button id="recurring-delete-btn" onclick="deleteRecurring()" style="display:none;width:100%;background:none;border:1px solid var(--danger);border-radius:12px;color:var(--danger);padding:13px;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px;font-size:0.88rem">🗑️ Excluir recorrência</button>
+    <button onclick="closeModal('modal-recurring')" style="width:100%;background:none;border:none;color:var(--muted);padding:14px;cursor:pointer;font-family:DM Sans,sans-serif">Cancelar</button>
+  </div>
+</div>
+
+<!-- ===== MODAL: BUDGET ===== -->
+<div class="modal-overlay" id="modal-budget">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Orçamento por Categoria</div>
+    <div class="form-group">
+      <label>Categoria</label>
+      <select id="budget-cat">
+        <option>🛒 Alimentação</option>
+        <option>📱 Assinaturas</option>
+        <option>👗 Compras</option>
+        <option>📚 Estudos</option>
+        <option>🎮 Lazer</option>
+        <option>🏠 Moradia</option>
+        <option>💊 Saúde</option>
+        <option>🚗 Transporte</option>
+        <option>🔧 Outros</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Limite mensal (R$)</label><input type="number" id="budget-limit" placeholder="0,00" step="0.01"></div>
+    <button class="btn-primary" onclick="saveBudgetLimit()" style="margin-top:8px">Salvar limite</button>
+    <div style="margin-top:16px">
+      <div style="font-size:0.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Limites definidos</div>
+      <div id="budget-limits-list"></div>
+    </div>
+    <button onclick="closeModal('modal-budget')" style="width:100%;background:none;border:none;color:var(--muted);padding:14px;cursor:pointer;font-family:DM Sans,sans-serif;margin-top:8px">Fechar</button>
+  </div>
+</div>
+
+<!-- ===== MODAL: RULES ===== -->
+<div class="modal-overlay" id="modal-rules">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Regras de Categorização</div>
+    <div style="font-size:0.82rem;color:var(--muted);margin-bottom:14px;line-height:1.5">Defina palavras-chave para categorizar transações automaticamente ao adicionar.</div>
+    <div class="form-group"><label>Palavra-chave</label><input type="text" id="rule-keyword" placeholder="Ex: ifood, netflix, uber"></div>
+    <div class="form-group">
+      <label>Categoria</label>
+      <select id="rule-cat">
+        <option>🛒 Alimentação</option>
+        <option>📱 Assinaturas</option>
+        <option>👗 Compras</option>
+        <option>📚 Estudos</option>
+        <option>🎮 Lazer</option>
+        <option>🏠 Moradia</option>
+        <option>💊 Saúde</option>
+        <option>🚗 Transporte</option>
+        <option>💰 Salário</option>
+        <option>📈 Investimento</option>
+        <option>🔧 Outros</option>
+      </select>
+    </div>
+    <button class="btn-primary" onclick="addRule()" style="margin-top:8px">Adicionar regra</button>
+    <div style="margin-top:16px">
+      <div style="font-size:0.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Regras ativas</div>
+      <div id="rules-list"></div>
+    </div>
+    <button onclick="closeModal('modal-rules')" style="width:100%;background:none;border:none;color:var(--muted);padding:14px;cursor:pointer;font-family:DM Sans,sans-serif;margin-top:8px">Fechar</button>
   </div>
 </div>
 
@@ -1283,7 +1470,7 @@
 </div>
 
 <!-- Export libraries -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 

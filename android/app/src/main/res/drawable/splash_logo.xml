@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Logo "F" do Finno para splash screen nativa (antes da TWA carregar) -->
+<!-- Logo "F" do FinnoFlow para splash screen nativa (antes da TWA carregar) -->
 <!-- Substituir por PNG 512×512 se preferir imagem bitmap -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="200dp"

@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-        Tema da splash screen nativa (exibida antes da TWA carregar).
+        Tema da splash screen nativa do FinnoFlow (exibida antes da TWA carregar).
         Parent: Theme.MaterialComponents.DayNight.NoActionBar
         — mais robusto que AppCompat, garantido pelo material:1.11.0 explícito.
     -->
-    <style name="Theme.Finno.Splash" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.FinnoFlow.Splash" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:windowBackground">@color/colorSplash</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>

@@ -61,6 +61,20 @@ export function clearErr(id) {
 }
 window.clearErr = clearErr;
 
+// Renderiza foto de avatar via DOM seguro — sem innerHTML.
+// Aceita apenas data:image/, https:// e http://.
+// Retorna false se a URL for inválida (mantém iniciais).
+function _safeAvatarPhoto(el, src) {
+  if (!src || !/^(https?:\/\/|data:image\/)/.test(src)) return false;
+  el.textContent = ''; // limpa iniciais sem innerHTML
+  const img = document.createElement('img');
+  img.src = src;
+  img.alt = '';
+  img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%';
+  el.appendChild(img);
+  return true;
+}
+
 export function setAvatar(user) {
   const el = document.getElementById('nav-avatar');
   if (!el) return;
@@ -70,11 +84,9 @@ export function setAvatar(user) {
     ? (parts[0][0] + parts[1][0]).toUpperCase()
     : name.slice(0, 2).toUpperCase();
   el.textContent = initials;
-  // Restore saved photo if available
+  // Restaura foto salva — via DOM seguro (sem innerHTML)
   const savedPhoto = localStorage.getItem('finno_photo_' + user.uid);
-  if (savedPhoto) {
-    el.innerHTML = `<img src="${savedPhoto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
-  }
+  if (savedPhoto) _safeAvatarPhoto(el, savedPhoto);
 }
 window.setAvatar = setAvatar;
 

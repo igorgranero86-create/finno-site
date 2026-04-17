@@ -217,7 +217,7 @@ function showGoogleConsentModal() {
     overlay.innerHTML = `
       <div style="background:var(--surface);border-radius:20px 20px 16px 16px;padding:24px;width:100%;max-width:420px;box-shadow:0 -8px 32px rgba(0,0,0,0.4)">
         <div style="font-family:Syne,sans-serif;font-weight:700;font-size:1.05rem;margin-bottom:8px">Antes de criar sua conta</div>
-        <p style="font-size:0.82rem;color:var(--muted);line-height:1.6;margin-bottom:16px">Para usar o Finno, você precisa aceitar nossos Termos de Uso e Política de Privacidade.</p>
+        <p style="font-size:0.82rem;color:var(--muted);line-height:1.6;margin-bottom:16px">Para usar o FinnoFlow, você precisa aceitar nossos Termos de Uso e Política de Privacidade.</p>
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:0.82rem;color:var(--muted);line-height:1.5;margin-bottom:20px">
           <input type="checkbox" id="google-lgpd-cb" style="margin-top:2px;accent-color:var(--accent);flex-shrink:0">
           <span>Li e concordo com os <a href="/pages/terms.html" target="_blank" style="color:var(--accent)">Termos de Uso</a> e a <a href="/pages/privacy.html" target="_blank" style="color:var(--accent)">Política de Privacidade</a>. Meus dados são protegidos conforme a LGPD.</span>
@@ -423,7 +423,7 @@ async function sendSMS() {
     // Show OTP screen with demo code hint
     const subEl = document.getElementById('otp-sub');
     if (subEl) subEl.innerHTML =
-      `Código de verificação do app Finno enviado para ${window._pendingPhone || 'seu número'}.<br>
+      `Código de verificação do app FinnoFlow enviado para ${window._pendingPhone || 'seu número'}.<br>
        <span style="color:var(--accent);font-weight:600">Código de teste: <span style="letter-spacing:0.15em">1 2 3 4 5 6</span></span>`;
 
     // Add a small demo badge below the OTP inputs
@@ -584,7 +584,7 @@ async function checkEmailVerification() {
       const uid = user.uid;
       const state = getPlanState(uid);
       const setupDone = localStorage.getItem('finno_setup_' + uid);
-      toast('E-mail confirmado! Bem-vindo ao Finno ✓', 'success');
+      toast('E-mail confirmado! Bem-vindo ao FinnoFlow ✓', 'success');
 
       // Developer always gets premium
       if (['igorgranero86@gmail.com'].includes(user.email)) {
@@ -886,10 +886,15 @@ function handlePhotoUpload(input) {
     const removeBtn = document.getElementById('remove-photo-btn');
     if (removeBtn) removeBtn.style.display = 'flex';
 
-    // Update nav avatar
+    // Atualiza avatar no nav via DOM seguro (sem innerHTML)
     const navAvatar = document.getElementById('nav-avatar');
-    if (navAvatar) {
-      navAvatar.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    if (navAvatar && /^data:image\//.test(dataUrl)) {
+      navAvatar.textContent = '';
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.alt = '';
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%';
+      navAvatar.appendChild(img);
     }
 
     // Clear input for re-selection
