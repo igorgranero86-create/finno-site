@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo "F" do Finno para splash screen nativa (antes da TWA carregar) -->
+<!-- Substituir por PNG 512×512 se preferir imagem bitmap -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- Fundo arredondado roxo -->
+    <path
+        android:fillColor="#7C6DFA"
+        android:pathData="M100,10
+            C50,10 10,50 10,100
+            C10,150 50,190 100,190
+            C150,190 190,150 190,100
+            C190,50 150,10 100,10Z" />
+
+    <!-- Letra F em branco -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M65,55 L135,55 L135,75 L85,75 L85,95 L125,95 L125,115 L85,115 L85,145 L65,145 Z" />
+</vector>

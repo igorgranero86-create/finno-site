@@ -18,13 +18,25 @@
     "public": ".",
     "ignore": [
       "firebase.json",
-      "**/.*",
+      ".git",
+      ".firebase",
+      ".firebaserc",
+      ".gitignore",
+      ".env*",
       "**/node_modules/**",
       "functions/**",
+      "android/**",
       "CLAUDE.md",
       "PROGRESSO.md"
     ],
+    "headers": [
+      {
+        "source": "/.well-known/assetlinks.json",
+        "headers": [{ "key": "Content-Type", "value": "application/json" }]
+      }
+    ],
     "rewrites": [
+      { "source": "/.well-known/assetlinks.json", "destination": "/.well-known/assetlinks.json" },
       { "source": "**", "destination": "/index.html" }
     ]
   }

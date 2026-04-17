@@ -1,0 +1,63 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Carrega credenciais de assinatura de keystore.properties (nunca sobe pro git)
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
+android {
+    namespace 'br.com.finno.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "br.com.finno.app"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        release {
+            storeFile     file(keystoreProps['storeFile']    ?: 'finno-release.jks')
+            storePassword keystoreProps['storePassword']     ?: ''
+            keyAlias      keystoreProps['keyAlias']          ?: 'finno'
+            keyPassword   keystoreProps['keyPassword']       ?: ''
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
+        release {
+            minifyEnabled   false
+            shrinkResources false
+            signingConfig   signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    bundle {
+        language { enableSplit = false }
+    }
+}
+
+dependencies {
+    // AppCompat — obrigatório para compilar recursos de tema
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    // Material Components — provê Theme.MaterialComponents usado em themes.xml
+    implementation 'com.google.android.material:material:1.11.0'
+    // Android Browser Helper — biblioteca oficial Google para TWA
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}

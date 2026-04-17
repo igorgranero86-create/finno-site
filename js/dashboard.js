@@ -1710,3 +1710,313 @@ export function maybeShowSimTease() {
   // No auto-simulation needed currently
 }
 window.maybeShowSimTease = maybeShowSimTease;
+
+// ── Exportação de dados (Excel + PDF) ────────────────────────────
+
+const _fmtBRL     = v => `R$ ${Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+const _stripEmoji = s => (s || '').replace(/^[\p{Emoji}\s]+/u, '').trim();
+const _catName    = t => _stripEmoji(t.cat) || 'Sem categoria';
+const _round2     = v => Math.round(v * 100) / 100;
+const _PERIOD_LABELS = {
+  month: 'Este mês', last30: 'Últimos 30 dias', last90: 'Últimos 90 dias',
+  last6m: 'Últimos 6 meses', all: 'Todo período'
+};
+
+function exportFilename(ext) {
+  const now = new Date();
+  return `finno-relatorio-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()}.${ext}`;
+}
+
+function filterTxForExport(txList, period) {
+  if (period === 'last6m') {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 6); d.setHours(0, 0, 0, 0);
+    return txList.filter(t => new Date((t.date||'').split('T')[0]+'T00:00:00') >= d);
+  }
+  return filterTxByPeriod(txList, period);
+}
+
+function getExportTransactions() {
+  const period = document.getElementById('export-period')?.value || 'month';
+  const type   = document.getElementById('export-type')?.value   || 'all';
+  const cat    = document.getElementById('export-cat')?.value    || 'all';
+  let filtered = filterTxForExport([...transactions], period);
+  if (type === 'income')  filtered = filtered.filter(t => t.amount > 0);
+  if (type === 'expense') filtered = filtered.filter(t => t.amount < 0);
+  if (cat !== 'all')      filtered = filtered.filter(t => t.cat === cat);
+  return filtered;
+}
+
+function updateExportPreview() {
+  const filtered = getExportTransactions();
+  const period   = document.getElementById('export-period')?.value || 'month';
+  const label    = _PERIOD_LABELS[period] || period;
+  const income   = _round2(calcIncome(filtered));
+  const expenses = _round2(calcExpenses(filtered));
+
+  const previewEl = document.getElementById('export-preview');
+  if (previewEl) {
+    previewEl.innerHTML = filtered.length === 0
+      ? `<span style="color:var(--muted)">Nenhuma transação no período selecionado.</span>`
+      : `<strong>${filtered.length}</strong> transação(ões) · ${label}<br>` +
+        `<span style="color:#4ade80">↑ Receitas: ${_fmtBRL(income)}</span> &nbsp;` +
+        `<span style="color:#f87171">↓ Despesas: ${_fmtBRL(expenses)}</span>`;
+  }
+
+  const warnEl = document.getElementById('export-count-warning');
+  if (warnEl) {
+    if (filtered.length > 1000) {
+      warnEl.textContent = `⚠️ ${filtered.length} transações selecionadas — o arquivo pode demorar alguns segundos.`;
+      warnEl.style.display = 'block';
+    } else {
+      warnEl.style.display = 'none';
+    }
+  }
+}
+window.updateExportPreview = updateExportPreview;
+
+export function openExportModal() {
+  const uid = auth.currentUser?.uid;
+  if (!['pro','premium','trial'].includes(getPlanState(uid))) {
+    showUpgrade('Exporte seus dados em Excel ou PDF a partir do Finno Pro.');
+    return;
+  }
+  document.getElementById('modal-export').classList.add('open');
+  updateExportPreview();
+}
+window.openExportModal = openExportModal;
+
+export function exportToExcel() {
+  if (typeof XLSX === 'undefined') { toast('Biblioteca não carregada. Recarregue a página.', 'error'); return; }
+  const filtered = getExportTransactions();
+  const btn = document.querySelector('#modal-export .btn-outline');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando...'; }
+
+  requestAnimationFrame(() => setTimeout(() => {
+    try {
+      const period      = document.getElementById('export-period')?.value || 'month';
+      const periodLabel = _PERIOD_LABELS[period] || period;
+
+      // ── Aba Transações (9 colunas) ──
+      const txHeaders = ['Data','Descrição','Categoria','Subcategoria','Tipo','Valor (R$)','Conta/Banco','Origem','Observação'];
+      const sorted = [...filtered].sort((a,b) => new Date(b.date) - new Date(a.date));
+      const txRows = sorted.map(t => [
+        new Date(t.date+'T00:00:00').toLocaleDateString('pt-BR'),
+        t.desc || '',
+        _catName(t),
+        '—',
+        t.amount > 0 ? 'Receita' : 'Despesa',
+        _round2(t.amount),        // número real com sinal: receita > 0, despesa < 0
+        t.bank || 'Manual',
+        (t.bank && t.bank !== 'Manual') ? 'Banco' : 'Manual',
+        '—'
+      ]);
+
+      const wsTx = XLSX.utils.aoa_to_sheet([txHeaders, ...txRows]);
+
+      // Formatar coluna Valor (índice 5) como número decimal
+      const range = XLSX.utils.decode_range(wsTx['!ref'] || 'A1');
+      for (let r = 1; r <= range.e.r; r++) {
+        const cell = wsTx[XLSX.utils.encode_cell({ r, c: 5 })];
+        if (cell) cell.z = '#,##0.00';
+      }
+      wsTx['!cols'] = [{wch:12},{wch:32},{wch:18},{wch:14},{wch:10},{wch:14},{wch:18},{wch:10},{wch:20}];
+
+      // ── Aba Resumo ──
+      const income   = _round2(calcIncome(filtered));
+      const expenses = _round2(calcExpenses(filtered));
+      const balance  = _round2(income - expenses);
+
+      const catMap = {};
+      filtered.forEach(t => {
+        const c = _catName(t);
+        catMap[c] = _round2((catMap[c] || 0) + t.amount);
+      });
+      const catRows = Object.entries(catMap)
+        .sort((a,b) => Math.abs(b[1]) - Math.abs(a[1]))
+        .map(([c,v]) => [c, v > 0 ? 'Receita' : 'Despesa', _round2(Math.abs(v))]);
+
+      const summaryData = [
+        ['Relatório Finno', periodLabel],
+        ['Gerado em', new Date().toLocaleDateString('pt-BR')],
+        [],
+        ['RESUMO FINANCEIRO','',''],
+        ['','Valor (R$)',''],
+        ['Total Receitas', income, ''],
+        ['Total Despesas', expenses, ''],
+        ['Saldo Final', balance, ''],
+        [],
+        ['TOTAIS POR CATEGORIA','',''],
+        ['Categoria','Tipo','Total (R$)'],
+        ...catRows
+      ];
+      const wsSum = XLSX.utils.aoa_to_sheet(summaryData);
+      wsSum['!cols'] = [{wch:28},{wch:12},{wch:16}];
+
+      // Formatar valores numéricos no resumo
+      [[5,1],[6,1],[7,1]].forEach(([r,c]) => {
+        const cell = wsSum[XLSX.utils.encode_cell({r,c})];
+        if (cell) cell.z = '#,##0.00';
+      });
+      const sumRange = XLSX.utils.decode_range(wsSum['!ref'] || 'A1');
+      for (let r = 11; r <= sumRange.e.r; r++) {
+        const cell = wsSum[XLSX.utils.encode_cell({r, c:2})];
+        if (cell) cell.z = '#,##0.00';
+      }
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, wsTx, 'Transações');
+      XLSX.utils.book_append_sheet(wb, wsSum, 'Resumo');
+      XLSX.writeFile(wb, exportFilename('xlsx'));
+
+      closeModal('modal-export');
+      toast('✓ Excel exportado com sucesso!', 'success');
+    } catch(e) {
+      console.error('Export Excel error:', e);
+      toast('Erro ao gerar Excel. Tente novamente.', 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '📊 Excel'; }
+    }
+  }, 50));
+}
+window.exportToExcel = exportToExcel;
+
+export function exportToPDF() {
+  if (typeof jspdf === 'undefined') { toast('Biblioteca não carregada. Recarregue a página.', 'error'); return; }
+  const filtered = getExportTransactions();
+  const btn = document.querySelector('#modal-export .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando...'; }
+
+  requestAnimationFrame(() => setTimeout(() => {
+    try {
+      const { jsPDF } = jspdf;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const MARGIN = 18, PAGE_W = 210, ACCENT = [130, 10, 209];
+      const period      = document.getElementById('export-period')?.value || 'month';
+      const periodLabel = _PERIOD_LABELS[period] || period;
+      const userName    = auth.currentUser?.displayName || auth.currentUser?.email || 'Usuário';
+      const dateStr     = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+      // ── Header roxo ──
+      doc.setFillColor(...ACCENT);
+      doc.rect(0, 0, PAGE_W, 28, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(20);
+      doc.text('finno', MARGIN, 16);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+      doc.text(`${userName}  ·  ${periodLabel}  ·  Gerado em ${dateStr}`, MARGIN, 23);
+
+      // ── Cards de resumo ──
+      const income   = _round2(calcIncome(filtered));
+      const expenses = _round2(calcExpenses(filtered));
+      const balance  = _round2(income - expenses);
+      let y = 38;
+      doc.setTextColor(30, 30, 50); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.text('Resumo do período', MARGIN, y);
+      y += 6;
+      const boxW = (PAGE_W - MARGIN * 2 - 8) / 3;
+      [
+        { label: 'Receitas', value: _fmtBRL(income),   color: [34, 197, 94] },
+        { label: 'Despesas', value: _fmtBRL(expenses),  color: [248, 113, 113] },
+        { label: 'Saldo',    value: _fmtBRL(balance),   color: balance >= 0 ? [34, 197, 94] : [248, 113, 113] }
+      ].forEach((item, i) => {
+        const bx = MARGIN + i * (boxW + 4);
+        doc.setFillColor(245, 245, 252); doc.roundedRect(bx, y, boxW, 18, 3, 3, 'F');
+        doc.setFontSize(8); doc.setTextColor(120, 120, 140); doc.setFont('helvetica', 'normal');
+        doc.text(item.label, bx + 4, y + 7);
+        doc.setFontSize(10); doc.setTextColor(...item.color); doc.setFont('helvetica', 'bold');
+        doc.text(item.value, bx + 4, y + 14);
+      });
+      y += 26;
+
+      // ── Gráfico de barras horizontais (top 7 categorias de despesa) ──
+      const catMap = {};
+      filtered.filter(t => t.amount < 0).forEach(t => {
+        const c = _catName(t);
+        catMap[c] = _round2((catMap[c] || 0) + Math.abs(t.amount));
+      });
+      const catEntries = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
+
+      if (catEntries.length > 0) {
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(30, 30, 50);
+        doc.text('Gastos por categoria', MARGIN, y);
+        y += 5;
+        const maxVal    = catEntries[0][1];
+        const BAR_MAX_W = 100, BAR_H = 5, BAR_GAP = 3, LABEL_W = 38;
+        catEntries.slice(0, 7).forEach(([cat, val]) => {
+          const barW = maxVal > 0 ? (val / maxVal) * BAR_MAX_W : 0;
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(60, 60, 80);
+          doc.text(cat.length > 16 ? cat.slice(0, 15) + '…' : cat, MARGIN, y + BAR_H - 1);
+          doc.setFillColor(228, 224, 240);
+          doc.rect(MARGIN + LABEL_W, y, BAR_MAX_W, BAR_H, 'F');
+          doc.setFillColor(...ACCENT);
+          if (barW > 0) doc.rect(MARGIN + LABEL_W, y, barW, BAR_H, 'F');
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(30, 30, 50);
+          doc.text(_fmtBRL(val), MARGIN + LABEL_W + BAR_MAX_W + 2, y + BAR_H - 1);
+          y += BAR_H + BAR_GAP;
+        });
+        y += 5;
+      }
+
+      // ── Tabela de transações ──
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(30, 30, 50);
+      doc.text('Transações', MARGIN, y);
+      doc.autoTable({
+        startY: y + 4,
+        head: [['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Banco']],
+        body: [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date)).map(t => [
+          new Date(t.date + 'T00:00:00').toLocaleDateString('pt-BR'),
+          t.desc || '', _catName(t),
+          t.amount > 0 ? 'Receita' : 'Despesa',
+          (t.amount > 0 ? '+ ' : '- ') + _fmtBRL(t.amount),
+          t.bank || 'Manual'
+        ]),
+        styles:      { fontSize: 8, cellPadding: 3, font: 'helvetica', textColor: [30, 30, 50] },
+        headStyles:  { fillColor: ACCENT, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+        alternateRowStyles: { fillColor: [248, 248, 252] },
+        columnStyles: { 0:{cellWidth:22}, 1:{cellWidth:52}, 2:{cellWidth:30}, 3:{cellWidth:20}, 4:{cellWidth:30}, 5:{cellWidth:20} },
+        margin: { left: MARGIN, right: MARGIN }
+      });
+
+      // ── Tabela de categorias com % ──
+      if (catEntries.length > 0) {
+        const totalExp = _round2(calcExpenses(filtered));
+        const afterTx  = doc.lastAutoTable.finalY + 8;
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(30, 30, 50);
+        doc.text('Detalhamento por categoria', MARGIN, afterTx);
+        doc.autoTable({
+          startY: afterTx + 4,
+          head:  [['Categoria', 'Total', '% do total']],
+          body:  catEntries.map(([c, v]) => [
+            c,
+            _fmtBRL(v),
+            totalExp > 0 ? (v / totalExp * 100).toFixed(1) + '%' : '—'
+          ]),
+          styles:     { fontSize: 9, cellPadding: 3, font: 'helvetica', textColor: [30, 30, 50] },
+          headStyles: { fillColor: ACCENT, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+          alternateRowStyles: { fillColor: [248, 248, 252] },
+          columnStyles: { 0:{cellWidth:80}, 1:{cellWidth:40}, 2:{cellWidth:28} },
+          margin: { left: MARGIN, right: MARGIN }
+        });
+      }
+
+      // ── Rodapé paginado ──
+      const pages = doc.internal.getNumberOfPages();
+      for (let p = 1; p <= pages; p++) {
+        doc.setPage(p);
+        doc.setFontSize(7); doc.setTextColor(160, 160, 180); doc.setFont('helvetica', 'normal');
+        doc.text(`finno · Relatório gerado em ${dateStr} · Página ${p} de ${pages}`, MARGIN, 290);
+      }
+
+      doc.save(exportFilename('pdf'));
+      closeModal('modal-export');
+      toast('✓ PDF exportado com sucesso!', 'success');
+    } catch(e) {
+      console.error('Export PDF error:', e);
+      toast('Erro ao gerar PDF. Tente novamente.', 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '📄 PDF'; }
+    }
+  }, 50));
+}
+window.exportToPDF = exportToPDF;

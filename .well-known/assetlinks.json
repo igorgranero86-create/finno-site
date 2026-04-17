@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "br.com.finno.app",
+    "sha256_cert_fingerprints": [
+      "73:B9:4F:2C:BD:53:6D:8E:FB:72:AB:A4:1B:3C:43:69:CF:C3:C1:06:DA:B7:2D:5E:68:10:B8:8D:21:C9:77:50"
+    ]
+  }
+}]

@@ -862,6 +862,7 @@
             <option value="all">Todo período</option>
           </select>
           <button onclick="clearFilters()" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 14px;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.82rem;cursor:pointer;white-space:nowrap">✕ Limpar</button>
+          <button onclick="openExportModal()" style="background:var(--accent);border:none;border-radius:10px;padding:9px 14px;color:#fff;font-family:DM Sans,sans-serif;font-size:0.82rem;cursor:pointer;white-space:nowrap;font-weight:600">📥 Exportar</button>
         </div>
         <div id="filter-summary" style="margin-top:8px;font-size:0.78rem;color:var(--muted)"></div>
       </div>
@@ -1224,6 +1225,67 @@
     <button onclick="closeModal('modal-logout')" style="width:100%;background:none;border:none;color:var(--muted);padding:14px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.9rem">Cancelar</button>
   </div>
 </div>
+
+<!-- ===== MODAL: EXPORT ===== -->
+<div class="modal-overlay" id="modal-export">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Exportar relatório</div>
+
+    <div class="form-group">
+      <label>Período</label>
+      <select id="export-period" onchange="updateExportPreview()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none">
+        <option value="month" selected>Este mês</option>
+        <option value="last30">Últimos 30 dias</option>
+        <option value="last90">Últimos 90 dias</option>
+        <option value="last6m">Últimos 6 meses</option>
+        <option value="all">Todo período</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Tipo</label>
+      <select id="export-type" onchange="updateExportPreview()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none">
+        <option value="all">Todos</option>
+        <option value="income">Somente receitas</option>
+        <option value="expense">Somente gastos</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Categoria</label>
+      <select id="export-cat" onchange="updateExportPreview()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none">
+        <option value="all">Todas as categorias</option>
+        <option value="🛒 Alimentação">Alimentação</option>
+        <option value="📱 Assinaturas">Assinaturas</option>
+        <option value="👗 Compras">Compras</option>
+        <option value="📚 Estudos">Estudos</option>
+        <option value="📈 Investimento">Investimento</option>
+        <option value="🎮 Lazer">Lazer</option>
+        <option value="🏠 Moradia">Moradia</option>
+        <option value="🔧 Outros">Outros</option>
+        <option value="💰 Salário">Salário</option>
+        <option value="💊 Saúde">Saúde</option>
+        <option value="🚗 Transporte">Transporte</option>
+      </select>
+    </div>
+
+    <div id="export-preview" style="background:rgba(130,10,209,0.07);border:1px solid rgba(130,10,209,0.18);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text2);line-height:1.6;margin-bottom:10px"></div>
+    <div id="export-count-warning" style="display:none;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:10px;padding:10px 14px;font-size:0.8rem;color:#fbbf24;margin-bottom:14px"></div>
+
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn-outline" onclick="exportToExcel()" style="flex:1;width:auto;padding:13px 10px;font-size:0.88rem">📊 Excel</button>
+      <button class="btn-primary" onclick="exportToPDF()" style="flex:1;width:auto;padding:13px 10px;font-size:0.88rem">📄 PDF</button>
+    </div>
+
+    <button onclick="closeModal('modal-export')" style="width:100%;background:none;border:none;color:var(--muted);padding:12px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.85rem;margin-top:4px">Cancelar</button>
+  </div>
+</div>
+
+<!-- Export libraries -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 
 <!-- Entry point ES module -->
 <script type="module" src="js/app.js"></script>

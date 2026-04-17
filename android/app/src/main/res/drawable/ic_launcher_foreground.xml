@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Foreground do ícone adaptativo — letra F branca centralizada -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Safe zone: 72×72dp centrado em 108×108dp (18dp de padding por lado) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,27 L72,27 L72,39 L48,39 L48,51 L66,51 L66,63 L48,63 L48,81 L36,81 Z" />
+</vector>
