@@ -767,8 +767,8 @@
           <span id="home-sync-text">Atualizado automaticamente</span>
         </div>
         <div class="period-pills">
-          <button class="period-pill active" onclick="setHomePeriod(this,'month')">Mês</button>
           <button class="period-pill" onclick="setHomePeriod(this,'week')">Semana</button>
+          <button class="period-pill active" onclick="setHomePeriod(this,'month')">Mês</button>
           <button class="period-pill" onclick="setHomePeriod(this,'all')">Total</button>
         </div>
       </div>
@@ -1060,7 +1060,16 @@
       </select>
     </div>
     <div class="form-group"><label>Data <span style="color:var(--muted);font-weight:400;font-size:0.78rem">(opcional — padrão: hoje)</span></label><input type="date" id="tx-date"></div>
-    <div class="form-group"><label>Observação <span style="color:var(--muted);font-weight:400;font-size:0.78rem">(opcional)</span></label><input type="text" id="tx-note" placeholder="Ex: Parcelado em 3x"></div>
+    <div class="form-group"><label>Observação <span style="color:var(--muted);font-weight:400;font-size:0.78rem">(opcional)</span></label><input type="text" id="tx-note" placeholder="Ex: cartão Bradesco">
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+        <input type="checkbox" id="tx-is-installment" onchange="toggleInstallmentField(this.checked)">
+        <label for="tx-is-installment" style="font-size:0.82rem;color:var(--muted);cursor:pointer">Compra parcelada</label>
+      </div>
+    </div>
+    <div class="form-group" id="installment-group" style="display:none">
+      <label>Parcelas <span style="color:var(--muted);font-weight:400;font-size:0.78rem">(nº de meses)</span></label>
+      <input type="number" id="tx-installments" placeholder="Ex: 3" min="2" max="60" step="1">
+    </div>
     <button class="btn-primary" id="modal-tx-save-btn" onclick="addTransaction()" style="margin-top:8px">Salvar transação</button>
     <button id="modal-tx-delete-btn" onclick="window._deleteTxFromModal()" style="display:none;width:100%;background:none;border:1px solid var(--danger);border-radius:12px;color:var(--danger);padding:13px;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px;font-size:0.88rem">🗑️ Excluir transação</button>
     <button onclick="closeModal('modal-tx')" style="width:100%;background:none;border:none;color:var(--muted);padding:14px;cursor:pointer;font-family:'DM Sans',sans-serif">Cancelar</button>
@@ -1467,6 +1476,7 @@
       <button class="btn-primary" onclick="exportToPDF()" style="flex:1;width:auto;padding:13px 10px;font-size:0.88rem">📄 PDF</button>
     </div>
 
+    <div style="text-align:center;font-size:0.7rem;color:var(--muted);margin-top:10px;margin-bottom:2px">📊 Exportação disponível no <strong style="color:var(--accent)">plano Pro</strong> e superiores</div>
     <button onclick="closeModal('modal-export')" style="width:100%;background:none;border:none;color:var(--muted);padding:12px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:0.85rem;margin-top:4px">Cancelar</button>
   </div>
 </div>

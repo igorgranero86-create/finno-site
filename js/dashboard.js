@@ -582,9 +582,32 @@ export function addTransaction() {
   if (_checkDuplicate(desc, Math.abs(val), txDate)) {
     if (!confirm(`Existe uma transação parecida com "${desc}" no mesmo período. Deseja continuar e adicionar mesmo assim?`)) return;
   }
-  const tx = { id: _genId(), date: txDate, desc, cat, amount, bank: 'Manual' };
+  const isInstallment = document.getElementById('tx-is-installment')?.checked;
+  const installCount = isInstallment ? (parseInt(document.getElementById('tx-installments')?.value) || 0) : 0;
+  const useDesc = (isInstallment && installCount >= 2) ? `${desc} (1/${installCount})` : desc;
+  const tx = { id: _genId(), date: txDate, desc: useDesc, cat, amount, bank: 'Manual' };
   if (note) tx.note = note;
-  transactions.unshift(tx);
+  if (isInstallment && installCount >= 2) {
+    const installId = _genId();
+    tx.installment = { id: installId, number: 1, total: installCount };
+    transactions.unshift(tx);
+    for (let n = 2; n <= installCount; n++) {
+      const futureDate = _advanceMonths(txDate, n - 1);
+      const installTx = {
+        id: _genId(),
+        date: futureDate,
+        desc: `${desc} (${n}/${installCount})`,
+        cat,
+        amount,
+        bank: 'Manual',
+        installment: { id: installId, number: n, total: installCount }
+      };
+      if (note) installTx.note = note;
+      transactions.unshift(installTx);
+    }
+  } else {
+    transactions.unshift(tx);
+  }
   saveTransactions();
   buildTransactions();
   buildCategories();
@@ -662,15 +685,48 @@ export function saveEditTx() {
 window.saveEditTx = saveEditTx;
 
 export function deleteTx(id) {
-  if (!confirm('Excluir esta transação?')) return;
-  transactions = transactions.filter(t => t.id !== id);
-  saveTransactions();
-  buildTransactions();
-  buildCategories();
-  buildHomePanel();
-  _resetTxModal();
-  closeModal('modal-tx');
-  toast('Transação excluída.', 'info');
+  const tx = transactions.find(t => t.id === id);
+  const desc = tx ? tx.desc : 'esta transação';
+  const val  = tx ? `R$ ${Math.abs(tx.amount).toLocaleString('pt-BR',{minimumFractionDigits:2})}` : '';
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9800;display:flex;align-items:center;justify-content:center;padding:20px';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px 24px;max-width:340px;width:100%;text-align:center';
+  const descText = document.createTextNode(desc + (val ? ' · ' + val : ''));
+  const descEl = document.createElement('div');
+  descEl.style.cssText = 'font-size:0.82rem;color:var(--muted);margin-bottom:20px;line-height:1.5';
+  descEl.appendChild(descText);
+  const emojiEl = document.createElement('div');
+  emojiEl.style.cssText = 'font-size:2rem;margin-bottom:12px';
+  emojiEl.textContent = '🗑️';
+  const titleEl2 = document.createElement('div');
+  titleEl2.style.cssText = 'font-family:Syne,sans-serif;font-weight:700;font-size:1rem;margin-bottom:6px';
+  titleEl2.textContent = 'Excluir transação?';
+  const btns = document.createElement('div');
+  btns.style.cssText = 'display:flex;gap:10px';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.style.cssText = 'flex:1;background:none;border:1px solid var(--border);border-radius:12px;padding:12px;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.88rem;cursor:pointer';
+  cancelBtn.textContent = 'Cancelar';
+  cancelBtn.onclick = () => overlay.remove();
+  const confirmBtn = document.createElement('button');
+  confirmBtn.style.cssText = 'flex:1;background:var(--danger);border:none;border-radius:12px;padding:12px;color:#fff;font-family:Syne,sans-serif;font-weight:700;font-size:0.88rem;cursor:pointer';
+  confirmBtn.textContent = 'Excluir';
+  confirmBtn.onclick = () => {
+    overlay.remove();
+    transactions = transactions.filter(t => t.id !== id);
+    saveTransactions();
+    buildTransactions();
+    buildCategories();
+    buildHomePanel();
+    _resetTxModal();
+    closeModal('modal-tx');
+    toast('Transação excluída.', 'info');
+  };
+  btns.append(cancelBtn, confirmBtn);
+  box.append(emojiEl, titleEl2, descEl, btns);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 window.deleteTx = deleteTx;
 
@@ -753,9 +809,24 @@ function _resetTxModal() {
   // Resetar tipo e categoria para os padrões — evita herdar valores de edição anterior
   const typeEl=document.getElementById('tx-type'); if(typeEl) typeEl.value='Gasto';
   const catEl=document.getElementById('tx-cat'); if(catEl) catEl.selectedIndex=0;
+  const instCb=document.getElementById('tx-is-installment'); if(instCb) instCb.checked=false;
+  const instEl=document.getElementById('tx-installments'); if(instEl) instEl.value='';
+  const instGrp=document.getElementById('installment-group'); if(instGrp) instGrp.style.display='none';
 }
 
 window._deleteTxFromModal = function() { if (_txEditingId) deleteTx(_txEditingId); };
+
+export function toggleInstallmentField(checked) {
+  const g = document.getElementById('installment-group');
+  if (g) g.style.display = checked ? 'block' : 'none';
+}
+window.toggleInstallmentField = toggleInstallmentField;
+
+function _advanceMonths(dateStr, months) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setMonth(d.getMonth() + months);
+  return _localDateStr(d);
+}
 
 // Ícones padrão por tipo de meta
 const GOAL_ICONS = { casamento:'💍', viagem:'✈️', casa:'🏠', carro:'🚗', estudo:'📚', emergencia:'🚨', outros:'🎯' };
@@ -1465,18 +1536,7 @@ export function openSupportContact() {
   const email = 'suporte@finnoflow.com.br';
   const planLabels = { free:'Gratuito', plus:'Plus', pro:'Pro', premium:'Premium', trial:'Trial', expired:'Expirado', none:'Sem plano' };
   const planName = planLabels[currentPlan] || currentPlan || 'Gratuito';
-  const uid = auth.currentUser?.uid || '';
-  const subject = encodeURIComponent(`Suporte FinnoFlow · Plano ${planName} · ${new Date().toLocaleDateString('pt-BR')}`);
-  const body = encodeURIComponent(`Olá, preciso de ajuda com o FinnoFlow.\n\nPlano: ${planName}\nID: ${uid.slice(0,8) || 'N/A'}\n\nDescrição do problema:\n`);
-  // Tentar abrir cliente de e-mail via link temporário
-  const link = document.createElement('a');
-  link.href = `mailto:${email}?subject=${subject}&body=${body}`;
-  link.style.display = 'none';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  // Exibir painel de fallback após breve delay (dá tempo para o mailto abrir)
-  setTimeout(() => _showSupportPanel(email, planName), 600);
+  _showSupportPanel(email, planName);
 }
 window.openSupportContact = openSupportContact;
 
@@ -1505,49 +1565,101 @@ function _clipboardCopy(text) {
 function _showSupportPanel(email, planName) {
   const existing = document.getElementById('support-panel');
   if (existing) existing.remove();
+  const user = (typeof auth !== 'undefined') ? auth.currentUser : null;
   const overlay = document.createElement('div');
   overlay.id = 'support-panel';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9500;display:flex;align-items:flex-end;justify-content:center;padding:0 0 20px';
   const sheet = document.createElement('div');
-  sheet.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:20px 20px 0 0;padding:24px 24px 32px;max-width:480px;width:100%;box-shadow:0 -8px 32px rgba(0,0,0,0.5)';
+  sheet.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:20px 20px 0 0;padding:24px 24px 32px;max-width:480px;width:100%;box-shadow:0 -8px 32px rgba(0,0,0,0.5);max-height:92vh;overflow-y:auto';
 
   const title = document.createElement('div');
-  title.style.cssText = 'font-family:Syne,sans-serif;font-weight:700;font-size:1rem;margin-bottom:8px';
+  title.style.cssText = 'font-family:Syne,sans-serif;font-weight:700;font-size:1rem;margin-bottom:18px';
   title.textContent = '📧 Falar com suporte';
 
-  const desc = document.createElement('div');
-  desc.style.cssText = 'font-size:0.82rem;color:var(--muted);margin-bottom:6px;line-height:1.6';
-  desc.textContent = 'Se o app de e-mail não abriu, copie o endereço abaixo e envie sua mensagem:';
-
-  const emailEl = document.createElement('div');
-  emailEl.style.cssText = 'font-size:0.88rem;font-weight:600;color:var(--text);margin-bottom:4px;user-select:all';
-  emailEl.textContent = email;
-
-  if (planName) {
-    const planEl = document.createElement('div');
-    planEl.style.cssText = 'font-size:0.72rem;color:var(--muted);margin-bottom:16px';
-    planEl.textContent = `Plano atual: ${planName}`;
-    sheet.append(title, desc, emailEl, planEl);
-  } else {
-    sheet.append(title, desc, emailEl);
+  // Helper to create a labeled input row
+  function _row(labelText, el) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-bottom:12px';
+    const lbl = document.createElement('label');
+    lbl.style.cssText = 'font-size:0.78rem;color:var(--muted);display:block;margin-bottom:5px';
+    lbl.textContent = labelText;
+    wrap.append(lbl, el);
+    return wrap;
   }
+  const inputCss = 'width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.84rem;outline:none;box-sizing:border-box';
 
-  const copyBtn = document.createElement('button');
-  copyBtn.style.cssText = 'width:100%;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:13px;font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;margin-bottom:8px';
-  copyBtn.textContent = '📋 Copiar e-mail';
-  copyBtn.onclick = () => {
-    _clipboardCopy(email)
-      .then(() => { toast('E-mail copiado! ✓', 'success'); overlay.remove(); })
-      .catch(() => { toast('Copie: ' + email, 'info'); });
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.placeholder = 'Seu nome';
+  nameInput.value = user?.displayName || '';
+  nameInput.style.cssText = inputCss;
+
+  const emailInput = document.createElement('input');
+  emailInput.type = 'email';
+  emailInput.placeholder = 'seu@email.com';
+  emailInput.value = user?.email || '';
+  emailInput.style.cssText = inputCss;
+
+  const subjectInput = document.createElement('input');
+  subjectInput.type = 'text';
+  subjectInput.value = `Suporte FinnoFlow · Plano ${planName}`;
+  subjectInput.style.cssText = inputCss;
+
+  const catSel = document.createElement('select');
+  catSel.style.cssText = inputCss;
+  ['Selecionar categoria...','Dúvida','Problema técnico','Sugestão','Cobrança'].forEach(o => {
+    const opt = document.createElement('option');
+    opt.textContent = o;
+    catSel.appendChild(opt);
+  });
+
+  const msgArea = document.createElement('textarea');
+  msgArea.placeholder = 'Descreva seu problema ou dúvida em detalhes...';
+  msgArea.rows = 4;
+  msgArea.style.cssText = inputCss + ';resize:vertical;min-height:90px';
+
+  sheet.append(
+    title,
+    _row('Nome', nameInput),
+    _row('E-mail', emailInput),
+    _row('Assunto', subjectInput),
+    _row('Categoria', catSel),
+    _row('Mensagem', msgArea)
+  );
+
+  const sendBtn = document.createElement('button');
+  sendBtn.style.cssText = 'width:100%;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:13px;font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;margin-top:6px;margin-bottom:8px';
+  sendBtn.textContent = '📤 Enviar mensagem';
+  sendBtn.onclick = () => {
+    const cat = catSel.value === 'Selecionar categoria...' ? '' : catSel.value;
+    const subj = encodeURIComponent(subjectInput.value || `Suporte FinnoFlow · Plano ${planName}`);
+    const bodyParts = [];
+    if (nameInput.value.trim()) bodyParts.push(`Nome: ${nameInput.value.trim()}`);
+    if (cat) bodyParts.push(`Categoria: ${cat}`);
+    bodyParts.push('');
+    bodyParts.push(msgArea.value.trim() || '(sem mensagem)');
+    const bod = encodeURIComponent(bodyParts.join('\n'));
+    const toEmail = emailInput.value.trim() ? email : email;
+    const link = document.createElement('a');
+    link.href = `mailto:${email}?subject=${subj}&body=${bod}`;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    overlay.remove();
+    toast('Seu e-mail foi aberto. Resposta em até 1 dia útil. ✓', 'success');
   };
+
+  const copyRow = document.createElement('div');
+  copyRow.style.cssText = 'font-size:0.72rem;color:var(--muted);text-align:center;margin-bottom:10px';
+  copyRow.textContent = `Ou escreva diretamente para: ${email}`;
 
   const closeBtn = document.createElement('button');
   closeBtn.style.cssText = 'width:100%;background:none;border:1px solid var(--border);border-radius:12px;padding:12px;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.88rem;cursor:pointer';
-  closeBtn.textContent = 'Fechar';
+  closeBtn.textContent = 'Cancelar';
   closeBtn.onclick = () => overlay.remove();
 
-  sheet.appendChild(copyBtn);
-  sheet.appendChild(closeBtn);
+  sheet.append(sendBtn, copyRow, closeBtn);
   overlay.appendChild(sheet);
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
@@ -1597,9 +1709,8 @@ export function openSplitModal(txId) {
   if (!tx) return;
   _splitTxId = txId;
   // Configurar total disponível
-  const totalEl = document.getElementById('split-total-amount');
+  const totalEl = document.getElementById('split-total-label');
   if (totalEl) totalEl.textContent = `R$ ${Math.abs(tx.amount).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
-  document.getElementById('split-tx-desc').textContent = tx.desc || 'Transação';
   // Resetar linhas
   const container = document.getElementById('split-rows');
   if (container) container.innerHTML = '';
@@ -2246,16 +2357,69 @@ export function applyPlanUI(plan) {
 window.applyPlanUI = applyPlanUI;
 
 export function confirmCancelPremium() {
-  if (!confirm('Tem certeza que deseja cancelar o Premium?')) return;
-  const uid = auth.currentUser?.uid;
-  if (uid) {
-    localStorage.setItem('finno_plan_'+uid,'free');
-    savePlanToFirestore(uid, 'free');
-  }
-  currentPlan = 'free';
-  closeModal('modal-account');
-  applyPlanUI('free');
-  toast('Assinatura cancelada. Voltando ao plano gratuito.','success');
+  const existing = document.getElementById('cancel-plan-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'cancel-plan-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9900;display:flex;align-items:flex-end;justify-content:center;padding:0 0 20px';
+  const sheet = document.createElement('div');
+  sheet.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:20px 20px 0 0;padding:28px 24px 32px;max-width:480px;width:100%';
+
+  const title = document.createElement('div');
+  title.style.cssText = 'font-family:Syne,sans-serif;font-weight:700;font-size:1.05rem;margin-bottom:16px;text-align:center';
+  title.textContent = 'Tem certeza que deseja cancelar?';
+
+  const benefitsList = document.createElement('ul');
+  benefitsList.style.cssText = 'list-style:none;padding:0;margin:0 0 18px;display:flex;flex-direction:column;gap:8px';
+  [
+    '🤖 Insights e análises com Inteligência Artificial',
+    '🏦 Conexão automática com contas bancárias',
+    '📊 Exportação de relatórios em Excel e PDF',
+    '📱 Sem anúncios — experiência limpa e rápida',
+  ].forEach(b => {
+    const li = document.createElement('li');
+    li.style.cssText = 'font-size:0.82rem;color:rgba(240,240,248,0.85);display:flex;align-items:center;gap:8px;background:rgba(124,109,250,0.08);border-radius:10px;padding:9px 12px';
+    li.textContent = b;
+    benefitsList.appendChild(li);
+  });
+
+  const reasonLabel = document.createElement('label');
+  reasonLabel.style.cssText = 'font-size:0.78rem;color:var(--muted);display:block;margin-bottom:6px';
+  reasonLabel.textContent = 'Motivo do cancelamento (opcional):';
+
+  const reasonSel = document.createElement('select');
+  reasonSel.style.cssText = 'width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-family:DM Sans,sans-serif;font-size:0.84rem;margin-bottom:18px;outline:none';
+  ['Selecionar...','Muito caro','Não estou usando','Faltam funcionalidades','Outro'].forEach(o => {
+    const opt = document.createElement('option');
+    opt.textContent = o;
+    reasonSel.appendChild(opt);
+  });
+
+  const keepBtn = document.createElement('button');
+  keepBtn.style.cssText = 'width:100%;background:linear-gradient(135deg,#7c6dfa,#fa6d9a);border:none;border-radius:13px;padding:14px;color:#fff;font-family:Syne,sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;margin-bottom:10px';
+  keepBtn.textContent = '✦ Continuar com meu plano';
+  keepBtn.onclick = () => overlay.remove();
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.style.cssText = 'width:100%;background:none;border:1px solid var(--border);border-radius:13px;padding:13px;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.85rem;cursor:pointer';
+  cancelBtn.textContent = 'Cancelar mesmo assim';
+  cancelBtn.onclick = () => {
+    overlay.remove();
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      localStorage.setItem('finno_plan_' + uid, 'free');
+      savePlanToFirestore(uid, 'free');
+    }
+    currentPlan = 'free';
+    closeModal('modal-account');
+    applyPlanUI('free');
+    toast('Assinatura cancelada. Voltando ao plano gratuito.', 'success');
+  };
+
+  sheet.append(title, benefitsList, reasonLabel, reasonSel, keepBtn, cancelBtn);
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 window.confirmCancelPremium = confirmCancelPremium;
 
