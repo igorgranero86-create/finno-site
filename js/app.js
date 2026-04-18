@@ -32,6 +32,20 @@ window.showView = showView;
 export function toast(msg, type = 'success') {
   const t = document.getElementById('toast');
   if (!t) return;
+  // Deduplicar: ignorar se mesma mensagem já está visível
+  if (t.textContent === msg && t.className.includes('show')) {
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => t.className = '', 3200);
+    return;
+  }
+  // Evitar flash rápido: se um toast está visível há menos de 400ms, enfileirar
+  const now = Date.now();
+  if (t.className.includes('show') && now - (window._toastShownAt || 0) < 400) {
+    clearTimeout(window._toastQueued);
+    window._toastQueued = setTimeout(() => toast(msg, type), 420);
+    return;
+  }
+  window._toastShownAt = now;
   t.textContent = msg;
   t.className = 'show ' + type;
   clearTimeout(window._toastTimer);

@@ -580,6 +580,15 @@ body::before {
 .cat-row { display: flex; align-items: center; justify-content: space-between; }
 .cat-row .name { font-size: 0.84rem; font-weight: 500; color: var(--text2); display: flex; align-items: center; gap: 8px; }
 .cat-row .amount { font-family: 'Syne', sans-serif; font-size: 0.84rem; font-weight: 700; color: var(--text); }
+
+/* ── CATEGORY MANAGER MODAL ──────────────────────────────────── */
+#cat-manager-list { display: flex; flex-direction: column; gap: 0; max-height: 55vh; overflow-y: auto; }
+.cat-mgr-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.cat-mgr-row:last-child { border-bottom: none; }
+.cat-mgr-emoji { font-size: 1.1rem; flex-shrink: 0; }
+.cat-mgr-name { flex: 1; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-mgr-badge { font-size: 0.68rem; color: var(--muted); background: var(--surface3); border-radius: 99px; padding: 2px 8px; flex-shrink: 0; }
+.cat-mgr-btn { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; cursor: pointer; font-size: 0.72rem; flex-shrink: 0; color: var(--text); }
 .cat-row .pct { font-size: 0.75rem; color: var(--muted); }
 .cat-bar { height: 4px; border-radius: 99px; background: var(--surface3); overflow: hidden; }
 .cat-fill { height: 100%; border-radius: 99px; transition: width 1s ease; }
@@ -677,6 +686,7 @@ body::before {
 }
 .modal-overlay.open { display: flex; }
 .modal-sheet {
+  position: relative;
   background: var(--surface);
   border-radius: 26px 26px 0 0;
   border: 1px solid rgba(255,255,255,0.07); border-bottom: none;

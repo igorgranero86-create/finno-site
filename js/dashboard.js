@@ -135,6 +135,7 @@ let goals = [];          // user's goals
 function saveTransactions() {
   const uid = auth.currentUser?.uid;
   if (uid) localStorage.setItem('finno_tx_' + uid, JSON.stringify(transactions));
+  _insightsCache = null; // invalidar cache ao salvar
   // 🔜 MIGRAÇÃO FUTURA: await setDoc(doc(db,'users',uid,'transactions',tx.id), tx)
 }
 
@@ -185,7 +186,10 @@ function _localDateStr(d) {
 
 // ── Computed data helpers ─────────────────────────────────────────
 function calcBalance() {
-  return transactions.reduce((s, t) => s + (t.amount || 0), 0);
+  // Mesmas exclusões de calcIncome/calcExpenses: transferências internas e ocultas ficam fora
+  return transactions
+    .filter(t => !t.isTransfer && !t.hidden)
+    .reduce((s, t) => s + (t.amount || 0), 0);
 }
 
 function calcIncome(txList) {
@@ -431,7 +435,14 @@ export function buildInsights() {
 }
 window.buildInsights = buildInsights;
 
+// Cache de insights — invalidado em saveTransactions()
+let _insightsCache = null;
+
 function generateInsights() {
+  // Chave: comprimento + id do primeiro e último item (muda se add/remove/edit)
+  const _key = transactions.length + '|' + (transactions[0]?.id || '') + '|' + (transactions[transactions.length - 1]?.id || '') + '|' + goals.length;
+  if (_insightsCache && _insightsCache.key === _key) return _insightsCache.result;
+
   const exp   = transactions.filter(t => t.amount < 0);
   const inc   = transactions.filter(t => t.amount > 0);
   const totalIncome   = calcIncome(transactions);
@@ -483,11 +494,13 @@ function generateInsights() {
   pool.push({ icon:'💳', color:'#f97316', tag:'Dica', title:`Nunca pague o mínimo do cartão`, text:`O rotativo cobra em média 400% ao ano. Se não puder pagar tudo, parcele — nunca o mínimo.`, score: 1 });
 
   const scored = pool.filter(p => p.title && p.text).sort((a,b)=>Math.abs(b.score||0)-Math.abs(a.score||0));
-  return {
+  const result = {
     score,
     scoreSub: `Taxa de poupança: ${savingsRate}% · Gastos: R$ ${totalExpenses.toLocaleString('pt-BR',{minimumFractionDigits:2})}`,
     insights: scored.slice(0, 8)
   };
+  _insightsCache = { key: _key, result };
+  return result;
 }
 window.generateInsights = generateInsights;
 
@@ -577,12 +590,7 @@ export function addTransaction() {
   buildCategories();
   buildHomePanel();
   closeModal('modal-tx');
-  document.getElementById('tx-desc').value = '';
-  document.getElementById('tx-val').value = '';
-  const txDateEl = document.getElementById('tx-date');
-  if (txDateEl) txDateEl.value = '';
-  const txNoteEl = document.getElementById('tx-note');
-  if (txNoteEl) txNoteEl.value = '';
+  _resetTxModal();
   toast('Transação adicionada! ✓', 'success');
   checkBudgetAlerts(tx);
   incrementManualEntriesCount();
@@ -606,7 +614,16 @@ export function openEditTx(id) {
   if (typeEl) typeEl.value = tx.amount < 0 ? 'Gasto' : 'Receita';
   if (descEl) descEl.value = tx.desc || '';
   if (valEl)  valEl.value  = Math.abs(tx.amount);
-  if (catEl)  catEl.value  = tx.cat || '🔧 Outros';
+  if (catEl) {
+    catEl.value = tx.cat || '🔧 Outros';
+    // Se categoria não existe mais no select (ex: deletada), adiciona como opção temporária
+    if (catEl.value !== (tx.cat || '🔧 Outros') && tx.cat) {
+      const opt = document.createElement('option');
+      opt.value = tx.cat; opt.textContent = tx.cat;
+      catEl.insertBefore(opt, catEl.firstChild);
+      catEl.value = tx.cat;
+    }
+  }
   if (dateEl) dateEl.value = (tx.date || '').split('T')[0];
   if (noteEl) noteEl.value = tx.note || '';
   const titleEl = document.getElementById('modal-tx-title');
@@ -732,6 +749,10 @@ function _resetTxModal() {
   if (delBtn)  delBtn.style.display = 'none';
   ['tx-desc','tx-val','tx-note'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   const dateEl=document.getElementById('tx-date'); if(dateEl) dateEl.value='';
+  const hintEl=document.getElementById('tx-cat-hint'); if(hintEl) hintEl.style.display='none';
+  // Resetar tipo e categoria para os padrões — evita herdar valores de edição anterior
+  const typeEl=document.getElementById('tx-type'); if(typeEl) typeEl.value='Gasto';
+  const catEl=document.getElementById('tx-cat'); if(catEl) catEl.selectedIndex=0;
 }
 
 window._deleteTxFromModal = function() { if (_txEditingId) deleteTx(_txEditingId); };
@@ -832,12 +853,18 @@ export function clearFilters() {
 }
 window.clearFilters = clearFilters;
 
+const TX_PAGE_SIZE = 100; // Número de transações renderizadas por vez
+
+// Contexto de paginação — preservado entre chamadas de "Carregar mais"
+let _txPageCtx = null;
+
 export function renderTransactions(txList) {
   const list = document.getElementById('tx-list');
   if (!list) return;
   const showHidden = document.getElementById('filter-show-hidden')?.checked;
   const visible = showHidden ? txList : txList.filter(t => !t.hidden);
   if (!visible || visible.length === 0) {
+    _txPageCtx = null;
     list.innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--muted)">
       <div style="font-size:2.5rem;margin-bottom:12px">📋</div>
       <div style="font-size:0.9rem;font-weight:600;margin-bottom:6px;color:var(--text2)">Nenhuma transação ainda</div>
@@ -846,12 +873,17 @@ export function renderTransactions(txList) {
     return;
   }
   const sorted = [...visible].sort((a,b) => new Date(b.date)-new Date(a.date));
-  const groups = {};
-  sorted.forEach(tx => {
-    const date = (tx.date||'').split('T')[0]||'Sem data';
-    if (!groups[date]) groups[date]=[];
-    groups[date].push(tx);
-  });
+  // Salvar contexto para paginação
+  _txPageCtx = { sorted, offset: 0 };
+  list.innerHTML = '';
+  _appendTxPage(list, sorted, 0, true);
+}
+window.renderTransactions = renderTransactions;
+
+// Adiciona a próxima página de transações ao #tx-list (usado por "Carregar mais")
+function _appendTxPage(list, sorted, offset, isFirst) {
+  const total = sorted.length;
+  const page  = sorted.slice(offset, offset + TX_PAGE_SIZE);
   const fmtDate = d => {
     const dt=new Date(d+'T00:00:00');
     const hoje=new Date(); hoje.setHours(0,0,0,0);
@@ -860,7 +892,21 @@ export function renderTransactions(txList) {
     if(diff===1) return 'Ontem';
     return dt.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'short'});
   };
+  const groups = {};
+  page.forEach(tx => {
+    const date = (tx.date||'').split('T')[0]||'Sem data';
+    if (!groups[date]) groups[date]=[];
+    groups[date].push(tx);
+  });
   const frag = document.createDocumentFragment();
+  // Contador de resultados (apenas na primeira página com paginação ativa)
+  if (isFirst && total > TX_PAGE_SIZE) {
+    const info = document.createElement('div');
+    info.id = 'tx-page-info';
+    info.style.cssText = 'text-align:center;font-size:0.72rem;color:var(--muted);padding:6px 0 10px;letter-spacing:0.02em';
+    info.textContent = `Mostrando ${Math.min(TX_PAGE_SIZE, total)} de ${total} transações`;
+    frag.appendChild(info);
+  }
   Object.entries(groups).forEach(([date,txs]) => {
     const dayTotal = txs.reduce((s,t) => s+t.amount, 0);
     const dayTotalFmt = (dayTotal>=0?'+':'') + 'R$ ' + Math.abs(dayTotal).toLocaleString('pt-BR',{minimumFractionDigits:2});
@@ -880,7 +926,6 @@ export function renderTransactions(txList) {
       txEl.className='tx-item';
       txEl.style.cssText='position:relative';
       const txId=tx.id||'';
-      const isBankTx = tx.bank && tx.bank !== 'Manual' && tx.bank !== 'Recorrente';
       txEl.innerHTML=`
         <div class="tx-emoji">${(tx.cat||'').split(' ')[0]||'💸'}</div>
         <div class="tx-info" style="min-width:0;flex:1">
@@ -905,10 +950,30 @@ export function renderTransactions(txList) {
     });
     frag.appendChild(group);
   });
-  list.innerHTML='';
+  const nextOffset = offset + TX_PAGE_SIZE;
+  const remaining  = total - nextOffset;
+  if (remaining > 0) {
+    const loadBtn = document.createElement('button');
+    loadBtn.id = 'tx-load-more';
+    loadBtn.style.cssText = 'width:100%;background:none;border:1px solid var(--border);border-radius:12px;padding:13px;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.85rem;cursor:pointer;margin-top:8px';
+    loadBtn.textContent = `Carregar mais ${Math.min(TX_PAGE_SIZE, remaining)} (${remaining} restantes)`;
+    loadBtn.onclick = () => {
+      // Marcar posição de ancoragem antes de remover o botão
+      const anchor = document.createElement('div');
+      anchor.id = 'tx-scroll-anchor';
+      loadBtn.replaceWith(anchor);
+      document.getElementById('tx-page-info')?.remove();
+      _appendTxPage(list, sorted, nextOffset, false);
+      // Scroll suave até onde o botão estava (ancoragem)
+      requestAnimationFrame(() => {
+        document.getElementById('tx-scroll-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.getElementById('tx-scroll-anchor')?.remove();
+      });
+    };
+    frag.appendChild(loadBtn);
+  }
   list.appendChild(frag);
 }
-window.renderTransactions = renderTransactions;
 
 export function toggleTxMenu(id) {
   document.querySelectorAll('[id^="tx-menu-"]').forEach(m => { if(m.id!==`tx-menu-${id}`) m.style.display='none'; });
@@ -928,7 +993,7 @@ export function filterCategoriesByPeriod() {
   const labelMap = { month:'Este mês', week:'Esta semana', today:'Hoje', last30:'Últimos 30 dias', last90:'Últimos 90 dias', all:'Todo período' };
   const label = document.getElementById('cat-period-label');
   if (label) label.textContent = labelMap[period] || period;
-  const filtered = filterTxByPeriod(transactions, period).filter(t => t.amount < 0);
+  const filtered = filterTxByPeriod(transactions, period).filter(t => t.amount < 0 && !t.isTransfer && !t.hidden);
   const total = filtered.reduce((s,t) => s + Math.abs(t.amount), 0);
   const totalEl = document.getElementById('cat-total-amount');
   if (totalEl) { const formatted = total.toLocaleString('pt-BR',{minimumFractionDigits:2}); const [int,dec] = formatted.split(','); totalEl.innerHTML = `<span>R$</span> ${int}<span style="font-size:1.2rem">,${dec}</span>`; }
@@ -1048,6 +1113,52 @@ export function applyRulesToDesc(desc) {
   return match ? match.cat : null;
 }
 window.applyRulesToDesc = applyRulesToDesc;
+
+// Sugestão em tempo real de categoria ao digitar descrição
+export function suggestCatFromDesc(desc) {
+  const catEl  = document.getElementById('tx-cat');
+  const hintEl = document.getElementById('tx-cat-hint');
+  if (!catEl || !hintEl) return;
+  const suggested = applyRulesToDesc(desc);
+  if (suggested && catEl.value !== suggested) {
+    // Construção segura via DOM — sem innerHTML com dados do usuário
+    hintEl.textContent = '';
+    const pill = document.createElement('div');
+    pill.style.cssText = 'display:flex;align-items:center;gap:6px;background:rgba(138,5,190,0.08);border:1px solid rgba(138,5,190,0.2);border-radius:8px;padding:6px 10px';
+
+    const label = document.createElement('span');
+    label.style.cssText = 'font-size:0.72rem;color:var(--accent);flex:1';
+    label.textContent = '💡 Sugestão: ';
+    const strong = document.createElement('strong');
+    strong.textContent = suggested;
+    label.appendChild(strong);
+
+    const applyBtn = document.createElement('button');
+    applyBtn.type = 'button';
+    applyBtn.textContent = 'Aplicar';
+    applyBtn.style.cssText = 'background:var(--accent);color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:0.7rem;cursor:pointer;font-family:DM Sans,sans-serif;flex-shrink:0';
+    applyBtn.addEventListener('click', () => {
+      catEl.value = suggested;
+      hintEl.style.display = 'none';
+    });
+
+    const dismissBtn = document.createElement('button');
+    dismissBtn.type = 'button';
+    dismissBtn.textContent = '✕';
+    dismissBtn.title = 'Ignorar sugestão';
+    dismissBtn.style.cssText = 'background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.9rem;padding:2px 4px;line-height:1;flex-shrink:0';
+    dismissBtn.addEventListener('click', () => { hintEl.style.display = 'none'; });
+
+    pill.appendChild(label);
+    pill.appendChild(applyBtn);
+    pill.appendChild(dismissBtn);
+    hintEl.appendChild(pill);
+    hintEl.style.display = 'block';
+  } else {
+    hintEl.style.display = 'none';
+  }
+}
+window.suggestCatFromDesc = suggestCatFromDesc;
 
 export function openRulesModal() {
   buildRulesList();
@@ -1225,11 +1336,17 @@ function _catsKey() { const uid=auth.currentUser?.uid; return uid?'finno_cats_'+
 function loadCustomCats() { const k=_catsKey(); if(!k) return []; try { return JSON.parse(localStorage.getItem(k)||'[]'); } catch(e) { return []; } }
 function saveCustomCats(cats) { const k=_catsKey(); if(!k) return; try { localStorage.setItem(k,JSON.stringify(cats)); } catch(e) { toast('Erro ao salvar categorias.','error'); } } // TODO(cloud): substituir por Firestore batch write quando migrar
 
-// Retorna TODAS as categorias: padrão + customizadas não-arquivadas
+// Retorna TODAS as categorias: padrão (não deletadas) + customizadas não-arquivadas + fallback obrigatório
 export function getAllCategories() {
+  const uid = auth.currentUser?.uid;
+  const deletedDefaults = uid ? JSON.parse(localStorage.getItem('finno_del_cats_' + uid) || '[]') : [];
+  const defaults = _DEFAULT_CATS.filter(c => !deletedDefaults.includes(c));
   const custom = loadCustomCats().filter(c => !c.archived);
   const customNames = custom.map(c => `${c.emoji} ${c.name}`);
-  return [..._DEFAULT_CATS, ...customNames];
+  const all = [...defaults, ...customNames];
+  // 'Sem categoria' sempre presente como fallback obrigatório — não pode ser removida
+  if (!all.includes('Sem categoria')) all.push('Sem categoria');
+  return all;
 }
 window.getAllCategories = getAllCategories;
 
@@ -1267,22 +1384,32 @@ export function buildCatManagerList() {
   const list = document.getElementById('cat-manager-list');
   if (!list) return;
   const custom = loadCustomCats();
-  const defaultHtml = _DEFAULT_CATS.map(c => `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);opacity:0.6">
-      <span style="font-size:1.2rem">${c.split(' ')[0]}</span>
-      <span style="flex:1;font-size:0.85rem">${c.replace(/^[\p{Emoji}\s]+/u,'').trim()||c}</span>
-      <span style="font-size:0.7rem;color:var(--muted);background:var(--surface3);border-radius:99px;padding:2px 8px">Padrão</span>
+  const uid = auth.currentUser?.uid;
+  const deletedDefaults = uid ? JSON.parse(localStorage.getItem('finno_del_cats_' + uid) || '[]') : [];
+  const visibleDefaults = _DEFAULT_CATS.filter(c => !deletedDefaults.includes(c));
+
+  const defaultHtml = visibleDefaults.map(c => `
+    <div class="cat-mgr-row" style="opacity:0.7">
+      <span class="cat-mgr-emoji">${c.split(' ')[0]}</span>
+      <span class="cat-mgr-name">${c.replace(/^[\p{Emoji}\s]+/u,'').trim()||c}</span>
+      <button class="cat-mgr-btn" onclick="deleteDefaultCat('${c.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" title="Remover categoria padrão" style="color:var(--danger)">🗑️</button>
+      <span class="cat-mgr-badge">Padrão</span>
     </div>
   `).join('');
   const customHtml = custom.length === 0 ? '' : custom.map(c => `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);opacity:${c.archived?0.4:1}">
-      <span style="font-size:1.2rem">${c.emoji||'🏷️'}</span>
-      <span style="flex:1;font-size:0.85rem">${c.name}${c.archived?' <span style="font-size:0.7rem;color:var(--muted)">(arquivada)</span>':''}</span>
-      <button onclick="archiveCat('${c.id}')" title="${c.archived?'Restaurar':'Arquivar'}" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:0.72rem;color:var(--muted)">${c.archived?'↩️':'📦'}</button>
-      <button onclick="openCatEditor('${c.id}')" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:0.72rem">✏️</button>
+    <div class="cat-mgr-row" style="opacity:${c.archived?0.4:1}">
+      <span class="cat-mgr-emoji">${c.emoji||'🏷️'}</span>
+      <span class="cat-mgr-name">${c.name}${c.archived?' <span style="font-size:0.7rem;color:var(--muted)">(arquivada)</span>':''}</span>
+      <button class="cat-mgr-btn" onclick="archiveCat('${c.id}')" title="${c.archived?'Restaurar':'Arquivar'}">${c.archived?'↩️':'📦'}</button>
+      <button class="cat-mgr-btn" onclick="openCatEditor('${c.id}')">✏️</button>
     </div>
   `).join('');
-  list.innerHTML = (customHtml||'<div style="font-size:0.8rem;color:var(--muted);padding:8px 0">Nenhuma categoria personalizada ainda.</div>') + '<div style="margin-top:8px;font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;padding-top:8px;border-top:1px solid var(--border)">Categorias padrão (somente leitura)</div>' + defaultHtml;
+
+  const customSection = customHtml || '<div style="font-size:0.8rem;color:var(--muted);padding:8px 0">Nenhuma categoria personalizada ainda.</div>';
+  const defaultSection = visibleDefaults.length > 0
+    ? '<div style="margin-top:8px;font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;padding:8px 0 4px;border-top:1px solid var(--border)">Categorias padrão</div>' + defaultHtml
+    : '';
+  list.innerHTML = customSection + defaultSection;
 }
 window.buildCatManagerList = buildCatManagerList;
 
@@ -1330,6 +1457,135 @@ export function archiveCat(id) {
   toast(cat.archived ? `"${cat.name}" arquivada.` : `"${cat.name}" restaurada.`, 'info');
 }
 window.archiveCat = archiveCat;
+
+// ── Suporte ao usuário ────────────────────────────────────────────
+// Abre mailto e exibe painel de fallback com opção de copiar e-mail.
+// Evita janela em branco em ambientes sem cliente de e-mail configurado.
+export function openSupportContact() {
+  const email = 'suporte@finnoflow.com.br';
+  const planLabels = { free:'Gratuito', plus:'Plus', pro:'Pro', premium:'Premium', trial:'Trial', expired:'Expirado', none:'Sem plano' };
+  const planName = planLabels[currentPlan] || currentPlan || 'Gratuito';
+  const uid = auth.currentUser?.uid || '';
+  const subject = encodeURIComponent(`Suporte FinnoFlow · Plano ${planName} · ${new Date().toLocaleDateString('pt-BR')}`);
+  const body = encodeURIComponent(`Olá, preciso de ajuda com o FinnoFlow.\n\nPlano: ${planName}\nID: ${uid.slice(0,8) || 'N/A'}\n\nDescrição do problema:\n`);
+  // Tentar abrir cliente de e-mail via link temporário
+  const link = document.createElement('a');
+  link.href = `mailto:${email}?subject=${subject}&body=${body}`;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  // Exibir painel de fallback após breve delay (dá tempo para o mailto abrir)
+  setTimeout(() => _showSupportPanel(email, planName), 600);
+}
+window.openSupportContact = openSupportContact;
+
+function _clipboardCopy(text) {
+  // Tenta Clipboard API; fallback para execCommand (ambientes sem HTTPS ou WebView antigo)
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise((resolve, reject) => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try {
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      ok ? resolve() : reject(new Error('execCommand failed'));
+    } catch (e) {
+      document.body.removeChild(ta);
+      reject(e);
+    }
+  });
+}
+
+function _showSupportPanel(email, planName) {
+  const existing = document.getElementById('support-panel');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'support-panel';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9500;display:flex;align-items:flex-end;justify-content:center;padding:0 0 20px';
+  const sheet = document.createElement('div');
+  sheet.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:20px 20px 0 0;padding:24px 24px 32px;max-width:480px;width:100%;box-shadow:0 -8px 32px rgba(0,0,0,0.5)';
+
+  const title = document.createElement('div');
+  title.style.cssText = 'font-family:Syne,sans-serif;font-weight:700;font-size:1rem;margin-bottom:8px';
+  title.textContent = '📧 Falar com suporte';
+
+  const desc = document.createElement('div');
+  desc.style.cssText = 'font-size:0.82rem;color:var(--muted);margin-bottom:6px;line-height:1.6';
+  desc.textContent = 'Se o app de e-mail não abriu, copie o endereço abaixo e envie sua mensagem:';
+
+  const emailEl = document.createElement('div');
+  emailEl.style.cssText = 'font-size:0.88rem;font-weight:600;color:var(--text);margin-bottom:4px;user-select:all';
+  emailEl.textContent = email;
+
+  if (planName) {
+    const planEl = document.createElement('div');
+    planEl.style.cssText = 'font-size:0.72rem;color:var(--muted);margin-bottom:16px';
+    planEl.textContent = `Plano atual: ${planName}`;
+    sheet.append(title, desc, emailEl, planEl);
+  } else {
+    sheet.append(title, desc, emailEl);
+  }
+
+  const copyBtn = document.createElement('button');
+  copyBtn.style.cssText = 'width:100%;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:13px;font-family:Syne,sans-serif;font-weight:700;font-size:0.9rem;cursor:pointer;margin-bottom:8px';
+  copyBtn.textContent = '📋 Copiar e-mail';
+  copyBtn.onclick = () => {
+    _clipboardCopy(email)
+      .then(() => { toast('E-mail copiado! ✓', 'success'); overlay.remove(); })
+      .catch(() => { toast('Copie: ' + email, 'info'); });
+  };
+
+  const closeBtn = document.createElement('button');
+  closeBtn.style.cssText = 'width:100%;background:none;border:1px solid var(--border);border-radius:12px;padding:12px;color:var(--muted);font-family:DM Sans,sans-serif;font-size:0.88rem;cursor:pointer';
+  closeBtn.textContent = 'Fechar';
+  closeBtn.onclick = () => overlay.remove();
+
+  sheet.appendChild(copyBtn);
+  sheet.appendChild(closeBtn);
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+// Remove categoria padrão: remapeia transações para "Sem categoria"
+export function deleteDefaultCat(cat) {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  // 'Sem categoria' nunca pode ser removida — é o fallback do sistema
+  if (cat === 'Sem categoria') { toast('Esta categoria é obrigatória e não pode ser removida.', 'error'); return; }
+  // Contar transações afetadas (principal + splits)
+  let affectedCount = 0;
+  transactions.forEach(t => {
+    if (t.cat === cat) affectedCount++;
+    if (t.splits) t.splits.forEach(s => { if (s.cat === cat) affectedCount++; });
+  });
+  const countMsg = affectedCount > 0
+    ? `\n${affectedCount} transação(ões) serão movidas para "Sem categoria".`
+    : '\nNenhuma transação usa essa categoria.';
+  if (!confirm(`Remover a categoria "${cat}"?${countMsg}\n\nEssa ação não pode ser desfeita.`)) return;
+  // Remap transactions
+  transactions = transactions.map(t => ({
+    ...t,
+    cat: t.cat === cat ? 'Sem categoria' : t.cat,
+    splits: t.splits ? t.splits.map(s => ({ ...s, cat: s.cat === cat ? 'Sem categoria' : s.cat })) : t.splits
+  }));
+  saveTransactions();
+  // Persist deleted default in localStorage
+  const key = 'finno_del_cats_' + uid;
+  const deleted = JSON.parse(localStorage.getItem(key) || '[]');
+  if (!deleted.includes(cat)) { deleted.push(cat); localStorage.setItem(key, JSON.stringify(deleted)); }
+  buildCatSelects();
+  buildCatManagerList();
+  const suffix = affectedCount > 0 ? ` ${affectedCount} transação(ões) remapeada(s).` : '';
+  toast(`Categoria removida.${suffix}`, 'info');
+}
+window.deleteDefaultCat = deleteDefaultCat;
 
 // ── Split Transaction (FASE 5) ────────────────────────────────────
 // Permite dividir uma transação em múltiplas categorias
@@ -2021,11 +2277,21 @@ window.showUpgrade = showUpgrade;
 
 export function goToDashboard() {
   const uid = auth.currentUser?.uid;
+  const alreadySetup = uid && localStorage.getItem('finno_setup_'+uid) === '1';
   if (uid) localStorage.setItem('finno_setup_'+uid,'1');
   const btn = document.getElementById('go-dashboard-btn');
-  if (btn) { btn.disabled=true; btn.textContent='Carregando...'; }
-  showScreen('screen-loading');
-  runLoadingSequence(() => { showScreen('screen-dashboard'); buildDashboard(); applyPlanUI(currentPlan); });
+  if (btn) { btn.disabled=true; btn.textContent='Acessando...'; }
+
+  if (alreadySetup) {
+    // Usuário já visitou o dashboard — ir direto sem animação de loading
+    showScreen('screen-dashboard');
+    buildDashboard();
+    applyPlanUI(currentPlan);
+  } else {
+    // Primeira vez — mostrar sequência de loading
+    showScreen('screen-loading');
+    runLoadingSequence(() => { showScreen('screen-dashboard'); buildDashboard(); applyPlanUI(currentPlan); });
+  }
 }
 window.goToDashboard = goToDashboard;
 
@@ -2745,16 +3011,20 @@ export function exportToExcel() {
         }
       }
 
-      wsTx['!cols']   = [{ wch: 12 },{ wch: 34 },{ wch: 18 },{ wch: 14 },{ wch: 10 },{ wch: 16 },{ wch: 18 },{ wch: 10 },{ wch: 20 }];
-      wsTx['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft', state: 'frozen' };
+      wsTx['!cols']       = [{ wch: 12 },{ wch: 34 },{ wch: 18 },{ wch: 14 },{ wch: 10 },{ wch: 16 },{ wch: 18 },{ wch: 10 },{ wch: 20 }];
+      wsTx['!freeze']     = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft', state: 'frozen' };
+      wsTx['!autofilter'] = { ref: 'A1:I1' };
+      wsTx['!sheetViews'] = [{ showGridLines: false }];
 
       // ── Aba Resumo ──
       const income   = _round2(calcIncome(filtered));
       const expenses = _round2(calcExpenses(filtered));
       const balance  = _round2(income - expenses);
 
+      // catMap: mesmas exclusões de calcIncome/calcExpenses para consistência de totais
       const catMap = {};
       filtered.forEach(t => {
+        if (t.isTransfer || t.hidden) return;
         if (t.splits && t.splits.length > 0) {
           t.splits.forEach(sp => {
             const c = _stripEmoji(sp.cat) || sp.cat || 'Sem categoria';
@@ -2851,8 +3121,9 @@ export function exportToExcel() {
         }
       }
 
-      wsSum['!cols']   = [{ wch: 28 },{ wch: 12 },{ wch: 16 },{ wch: 12 }];
-      wsSum['!freeze'] = { xSplit: 0, ySplit: 11, topLeftCell: 'A12', activePane: 'bottomLeft', state: 'frozen' };
+      wsSum['!cols']       = [{ wch: 28 },{ wch: 12 },{ wch: 16 },{ wch: 12 }];
+      wsSum['!freeze']     = { xSplit: 0, ySplit: 11, topLeftCell: 'A12', activePane: 'bottomLeft', state: 'frozen' };
+      wsSum['!sheetViews'] = [{ showGridLines: false }];
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, wsTx, 'Transações');
@@ -2920,8 +3191,9 @@ export function exportToPDF() {
       y += 26;
 
       // ── Gráfico de barras horizontais (top 7 categorias de despesa) ──
+      // catMap PDF: mesmas exclusões de calcExpenses para consistência de totais
       const catMap = {};
-      filtered.filter(t => t.amount < 0).forEach(t => {
+      filtered.filter(t => t.amount < 0 && !t.isTransfer && !t.hidden).forEach(t => {
         if (t.splits && t.splits.length > 0) {
           t.splits.forEach(sp => {
             const c = _stripEmoji(sp.cat) || sp.cat || 'Sem categoria';
